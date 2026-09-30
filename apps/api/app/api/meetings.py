@@ -1,23 +1,32 @@
 import base64
 import binascii
+import hashlib
 import json
+import tempfile
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Header, Query, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import and_, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.jwt import get_current_user
 from app.db.session import get_db
 from app.errors import ApiError
+from app.models.job import ProcessingJob
 from app.models.meeting import Meeting, utc_now
+from app.models.recording import Recording
+from app.services.media import MAX_DURATION_MS, MAX_FILE_BYTES, inspect_audio
+from app.services.storage import Storage, get_storage
 
 router = APIRouter(prefix="/v1/meetings", tags=["meetings"])
 CurrentUser = Annotated[uuid.UUID, Depends(get_current_user)]
 DbSession = Annotated[Session, Depends(get_db)]
+PrivateStorage = Annotated[Storage, Depends(get_storage)]
 
 
 class CreateMeeting(BaseModel):
@@ -72,11 +81,34 @@ class MeetingListResponse(BaseModel):
     next_cursor: str | None
 
 
+class RecordingOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    mime_type: str
+    size_bytes: int
+    uploaded_at: datetime
+
+
+class JobOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    status: str
+    attempts: int
+    last_error_code: str | None
+
+
 class MeetingDetailResponse(MeetingResponse):
-    recording: None
-    job: None
+    recording: RecordingOut | None
+    job: JobOut | None
     has_transcript: bool
     has_summary: bool
+
+
+class UploadResponse(BaseModel):
+    meeting_id: uuid.UUID
+    status: Literal["queued"]
 
 
 def owned_meeting(db: Session, meeting_id: uuid.UUID, owner_id: uuid.UUID) -> Meeting:
@@ -161,10 +193,12 @@ def get_meeting(
     db: DbSession,
 ) -> dict:
     meeting = owned_meeting(db, meeting_id, owner_id)
+    recording = db.scalar(select(Recording).where(Recording.meeting_id == meeting_id))
+    job = db.scalar(select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id))
     return {
         "meeting": MeetingOut.model_validate(meeting),
-        "recording": None,
-        "job": None,
+        "recording": RecordingOut.model_validate(recording) if recording else None,
+        "job": JobOut.model_validate(job) if job else None,
         "has_transcript": False,
         "has_summary": False,
     }
@@ -183,3 +217,133 @@ def rename_meeting(
     db.commit()
     db.refresh(meeting)
     return {"meeting": MeetingOut.model_validate(meeting)}
+
+
+@router.post("/{meeting_id}/recording", status_code=202, response_model=UploadResponse)
+def upload_recording(
+    meeting_id: uuid.UUID,
+    owner_id: CurrentUser,
+    db: DbSession,
+    storage: PrivateStorage,
+    file: Annotated[UploadFile, File()],
+    duration_ms: Annotated[int, Form(gt=0, le=MAX_DURATION_MS)],
+    idempotency_key: Annotated[uuid.UUID, Header(alias="Idempotency-Key")],
+) -> dict:
+    meeting = owned_meeting(db, meeting_id, owner_id)
+    prior = db.scalar(select(Recording).where(Recording.meeting_id == meeting_id))
+    if prior:
+        if prior.upload_idempotency_key == idempotency_key:
+            return {"meeting_id": meeting_id, "status": "queued"}
+        raise ApiError(409, "RECORDING_EXISTS", "This meeting already has a recording")
+    if meeting.status not in {"draft", "uploading"} or (
+        meeting.status == "uploading" and meeting.upload_key != idempotency_key
+    ):
+        raise ApiError(409, "INVALID_STATE", "This meeting is not accepting a recording")
+
+    meeting.status = "uploading"
+    meeting.upload_key = idempotency_key
+    meeting.updated_at = utc_now()
+    db.commit()
+
+    temporary_path: Path | None = None
+    object_key: str | None = None
+    object_saved = False
+    try:
+        digest = hashlib.sha256()
+        size = 0
+        with tempfile.NamedTemporaryFile(prefix="meeting-upload-", delete=False) as temporary:
+            temporary_path = Path(temporary.name)
+            while chunk := file.file.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_FILE_BYTES:
+                    raise ApiError(413, "FILE_LIMIT", "Recordings must be 100 MB or smaller")
+                digest.update(chunk)
+                temporary.write(chunk)
+        if size == 0:
+            raise ApiError(415, "INVALID_MEDIA", "The recording is empty")
+        mime_type, actual_duration_ms = inspect_audio(temporary_path, file.content_type or "")
+        extension = {
+            "audio/webm": "webm",
+            "video/webm": "webm",
+            "audio/ogg": "ogg",
+            "audio/mp4": "m4a",
+            "audio/x-m4a": "m4a",
+            "audio/wav": "wav",
+            "audio/x-wav": "wav",
+            "audio/mpeg": "mp3",
+        }[mime_type]
+        object_key = f"{owner_id}/{meeting_id}/{uuid.uuid4()}.{extension}"
+        storage.upload(temporary_path, object_key, mime_type)
+        object_saved = True
+
+        locked = db.scalar(select(Meeting).where(Meeting.id == meeting_id).with_for_update())
+        if locked is None or locked.deleted_at is not None or locked.owner_id != owner_id:
+            raise ApiError(404, "MEETING_NOT_FOUND", "Meeting not found")
+        existing = db.scalar(select(Recording).where(Recording.meeting_id == meeting_id))
+        if existing:
+            if existing.upload_idempotency_key == idempotency_key:
+                return {"meeting_id": meeting_id, "status": "queued"}
+            raise ApiError(409, "RECORDING_EXISTS", "This meeting already has a recording")
+        if locked.status != "uploading" or locked.upload_key != idempotency_key:
+            raise ApiError(409, "INVALID_STATE", "This meeting is not accepting a recording")
+        now = utc_now()
+        db.add(
+            Recording(
+                meeting_id=meeting_id,
+                object_key=object_key,
+                mime_type=mime_type,
+                size_bytes=size,
+                sha256=digest.hexdigest(),
+                upload_idempotency_key=idempotency_key,
+                uploaded_at=now,
+                purge_after=now + timedelta(days=7),
+            )
+        )
+        db.add(
+            ProcessingJob(
+                meeting_id=meeting_id,
+                kind="process_recording",
+                status="pending",
+                attempts=0,
+                max_attempts=3,
+                run_after=now,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        locked.status = "queued"
+        locked.duration_ms = actual_duration_ms
+        locked.ended_at = now
+        locked.started_at = now - timedelta(milliseconds=actual_duration_ms)
+        locked.updated_at = now
+        db.commit()
+        object_saved = False
+        return {"meeting_id": meeting_id, "status": "queued"}
+    except IntegrityError as exc:
+        db.rollback()
+        existing = db.scalar(select(Recording).where(Recording.meeting_id == meeting_id))
+        if existing and existing.upload_idempotency_key == idempotency_key:
+            return {"meeting_id": meeting_id, "status": "queued"}
+        raise ApiError(409, "RECORDING_EXISTS", "This meeting already has a recording") from exc
+    finally:
+        if temporary_path:
+            temporary_path.unlink(missing_ok=True)
+        if object_saved and object_key:
+            try:
+                storage.delete(object_key)
+            except Exception:
+                pass  # The maintenance orphan sweep removes a failed cleanup.
+        if meeting_id:
+            db.rollback()
+            failed = db.scalar(select(Meeting).where(Meeting.id == meeting_id))
+            recording = db.scalar(select(Recording).where(Recording.meeting_id == meeting_id))
+            if (
+                failed
+                and recording is None
+                and failed.status == "uploading"
+                and failed.upload_key == idempotency_key
+            ):
+                failed.status = "draft"
+                failed.upload_key = None
+                failed.updated_at = utc_now()
+                db.commit()

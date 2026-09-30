@@ -1,19 +1,13 @@
 "use client";
 
-import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
+import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import type { components } from "@/lib/api-types";
+import { apiUrl, makeClient } from "@/lib/supabase";
 
 type Meeting = components["schemas"]["MeetingOut"];
 type MeetingPage = components["schemas"]["MeetingListResponse"];
-
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-function makeClient(): SupabaseClient | null {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  return url && key ? createClient(url, key) : null;
-}
 
 export default function Home() {
   const [client] = useState(makeClient);
@@ -24,16 +18,20 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
 
-  const loadMeetings = useCallback(async (accessToken: string) => {
+  const loadMeetings = useCallback(async (accessToken: string, cursor?: string) => {
     try {
-      const response = await fetch(`${apiUrl}/v1/meetings`, {
+      const url = new URL(`${apiUrl}/v1/meetings`);
+      if (cursor) url.searchParams.set("cursor", cursor);
+      const response = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${accessToken}` },
         cache: "no-store",
       });
       if (!response.ok) throw new Error(`Meeting request failed (${response.status})`);
       const data: MeetingPage = await response.json();
-      setMeetings(data.items);
+      setMeetings((current) => cursor ? [...current, ...data.items] : data.items);
+      setNextCursor(data.next_cursor);
       setMessage("");
     } catch {
       setMessage("Could not load your meetings. Check the API and try again.");
@@ -49,7 +47,7 @@ export default function Home() {
     const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (nextSession) void loadMeetings(nextSession.access_token);
-      else setMeetings([]);
+      else { setMeetings([]); setNextCursor(null); }
     });
     return () => data.subscription.unsubscribe();
   }, [client, loadMeetings]);
@@ -87,7 +85,7 @@ export default function Home() {
           <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-teal-700">Private workspace</p>
           <h1 className="mb-5 text-4xl font-semibold leading-tight">Keep the meeting. Find the next step.</h1>
           <p className="max-w-md text-lg leading-relaxed text-slate-700">A place for the meetings you choose to record. Your transcript and draft notes will appear here after processing.</p>
-          <p className="mt-6 max-w-md text-sm text-slate-600">Recording requires your action and a consent reminder before the microphone starts. The recording workflow is coming in the next milestone.</p>
+          <p className="mt-6 max-w-md text-sm text-slate-600">Recording starts only when you choose to begin and confirm the consent reminder. Raw audio is removed after processing under the retention policy.</p>
         </section>
         <section className="rounded-2xl bg-white p-7 shadow-sm" aria-label={session ? "Your meetings" : "Sign in"}>
           {!client ? (
@@ -98,7 +96,9 @@ export default function Home() {
                 <h2 className="text-2xl font-semibold">Your meetings</h2>
                 <button className="rounded border border-teal-700 px-3 py-2 text-sm text-teal-800" onClick={() => void loadMeetings(session.access_token)}>Refresh</button>
               </div>
-              {meetings.length ? <ul className="space-y-3">{meetings.map((meeting) => <li className="rounded-lg border border-slate-200 p-4" key={meeting.id}><strong>{meeting.title}</strong><div className="mt-1 text-sm text-slate-600">{new Date(meeting.created_at).toLocaleString()} · {meeting.status}</div></li>)}</ul> : <p className="text-slate-600">No meetings yet. Recording and upload arrive in Milestone 2.</p>}
+              <Link href="/meetings/new" className="mb-6 inline-block rounded bg-teal-800 px-5 py-3 font-medium text-white">New meeting</Link>
+              {meetings.length ? <ul className="space-y-3">{meetings.map((meeting) => <li className="rounded-lg border border-slate-200 p-4" key={meeting.id}><Link className="font-semibold text-teal-800 underline" href={`/meetings/${meeting.id}`}>{meeting.title}</Link><div className="mt-1 text-sm text-slate-600">{new Date(meeting.created_at).toLocaleString()} · {meeting.status}</div></li>)}</ul> : <p className="text-slate-600">No meetings yet. Start one when you are ready.</p>}
+              {nextCursor && <button className="mt-5 rounded border border-teal-700 px-4 py-2 text-teal-800" onClick={() => void loadMeetings(session.access_token, nextCursor)}>Load more</button>}
             </>
           ) : (
             <>

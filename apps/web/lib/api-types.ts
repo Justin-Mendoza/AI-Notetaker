@@ -74,10 +74,34 @@ export interface paths {
         patch: operations["rename_meeting_v1_meetings__meeting_id__patch"];
         trace?: never;
     };
+    "/v1/meetings/{meeting_id}/recording": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Recording */
+        post: operations["upload_recording_v1_meetings__meeting_id__recording_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_upload_recording_v1_meetings__meeting_id__recording_post */
+        Body_upload_recording_v1_meetings__meeting_id__recording_post: {
+            /** Duration Ms */
+            duration_ms: number;
+            /** File */
+            file: string;
+        };
         /** CreateMeeting */
         CreateMeeting: {
             /**
@@ -95,17 +119,29 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** JobOut */
+        JobOut: {
+            /** Attempts */
+            attempts: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Error Code */
+            last_error_code: string | null;
+            /** Status */
+            status: string;
+        };
         /** MeetingDetailResponse */
         MeetingDetailResponse: {
             /** Has Summary */
             has_summary: boolean;
             /** Has Transcript */
             has_transcript: boolean;
-            /** Job */
-            job: null;
+            job: components["schemas"]["JobOut"] | null;
             meeting: components["schemas"]["MeetingOut"];
-            /** Recording */
-            recording: null;
+            recording: components["schemas"]["RecordingOut"] | null;
         };
         /** MeetingListResponse */
         MeetingListResponse: {
@@ -153,10 +189,40 @@ export interface components {
         MeetingResponse: {
             meeting: components["schemas"]["MeetingOut"];
         };
+        /** RecordingOut */
+        RecordingOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Mime Type */
+            mime_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /**
+             * Uploaded At
+             * Format: date-time
+             */
+            uploaded_at: string;
+        };
         /** RenameMeeting */
         RenameMeeting: {
             /** Title */
             title: string;
+        };
+        /** UploadResponse */
+        UploadResponse: {
+            /**
+             * Meeting Id
+             * Format: uuid
+             */
+            meeting_id: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "queued";
         };
         /** ValidationError */
         ValidationError: {
@@ -342,6 +408,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeetingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_recording_v1_meetings__meeting_id__recording_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_recording_v1_meetings__meeting_id__recording_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadResponse"];
                 };
             };
             /** @description Validation Error */

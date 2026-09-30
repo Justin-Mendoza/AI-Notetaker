@@ -5,7 +5,9 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from app.db.base import Base
+from app.models.job import ProcessingJob  # noqa: F401
 from app.models.meeting import Meeting  # noqa: F401
+from app.models.recording import Recording  # noqa: F401
 from app.settings import settings
 
 load_dotenv()
