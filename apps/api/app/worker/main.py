@@ -4,6 +4,7 @@ import time
 import uuid
 
 from app.db.session import SessionLocal
+from app.observability import configure_logging
 from app.services.storage import get_storage
 from app.services.summarization import OpenAISummarizer
 from app.services.transcription import OpenAITranscriber
@@ -11,7 +12,7 @@ from app.worker.runner import requeue_incomplete_summaries, run_once
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configure_logging()
     worker_id = f"{socket.gethostname()}-{uuid.uuid4()}"
     storage = get_storage()
     transcriber = OpenAITranscriber()

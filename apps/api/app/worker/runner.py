@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import random
 import tempfile
 import threading
@@ -38,6 +39,7 @@ from app.worker.audio import AudioChunk, AudioProcessingError, split_audio
 LEASE_SECONDS = 300
 SessionFactory = Callable[[], Session]
 Splitter = Callable[[Path, int, Path], list[AudioChunk]]
+logger = logging.getLogger(__name__)
 
 
 class JobCancelled(Exception):
@@ -449,6 +451,15 @@ def run_once(
     job_id = claim_job(session_factory, worker_id)
     if job_id is None:
         return False
+    with session_factory() as db:
+        claimed = db.get(ProcessingJob, job_id)
+        details = {
+            "job_id": job_id,
+            "meeting_id": claimed.meeting_id,
+            "stage": claimed.stage,
+            "attempt": claimed.attempts,
+        }
+    logger.info("job_claimed", extra=details)
     try:
         storage = storage or get_storage()
         transcriber = transcriber or OpenAITranscriber()
@@ -462,13 +473,16 @@ def run_once(
                 session_factory, job_id, worker_id, storage, transcriber, splitter, summarizer
             )
     except (JobCancelled, LeaseLost):
-        pass
+        logger.info("job_cancelled_or_lease_lost", extra=details)
     except ProcessingFailure as exc:
         mark_failure(session_factory, job_id, worker_id, exc)
+        logger.warning("job_failed", extra={**details, "error_code": exc.code})
     except SummaryError as exc:
         mark_failure(session_factory, job_id, worker_id, ProcessingFailure(exc.code, exc.transient))
+        logger.warning("job_failed", extra={**details, "error_code": exc.code})
     except TranscriptionError as exc:
         mark_failure(session_factory, job_id, worker_id, ProcessingFailure(exc.code, exc.transient))
+        logger.warning("job_failed", extra={**details, "error_code": exc.code})
     except Exception:
         mark_failure(
             session_factory,
@@ -476,4 +490,7 @@ def run_once(
             worker_id,
             ProcessingFailure("PROCESSING_ERROR", transient=True),
         )
+        logger.warning("job_failed", extra={**details, "error_code": "PROCESSING_ERROR"})
+    else:
+        logger.info("job_stage_completed", extra=details)
     return True

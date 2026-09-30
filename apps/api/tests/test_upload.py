@@ -99,3 +99,15 @@ def test_storage_failure_keeps_meeting_retryable(api_client, monkeypatch):
     response = upload(client, meeting_id, uuid.uuid4())
     assert response.status_code == 503
     assert client.get(f"/v1/meetings/{meeting_id}").json()["meeting"]["status"] == "draft"
+
+
+def test_request_body_is_rejected_before_multipart_spooling(api_client, monkeypatch):
+    client, _ = api_client
+    storage = FakeStorage()
+    app.dependency_overrides[get_storage] = lambda: storage
+    monkeypatch.setattr("app.size_limit.MAX_UPLOAD_REQUEST_BYTES", 100)
+    meeting_id = create_meeting(client)
+    response = upload(client, meeting_id, uuid.uuid4(), data=b"OggS" + b"x" * 200)
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "REQUEST_TOO_LARGE"
+    assert storage.uploaded == []

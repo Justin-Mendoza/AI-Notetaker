@@ -1,6 +1,6 @@
 # Meeting Notes
 
-Private meeting notes app. This repository implements the foundation, recording/upload, transcription, and structured-notes milestones of [the design](docs/design.md). Production hardening follows in the next stacked change.
+Private meeting notes app implementing the MVP in [the design](docs/design.md). The app records microphone audio after explicit consent, uploads it to private storage, processes it in a separate worker, and saves a transcript and reviewable draft notes.
 
 ## Requirements
 
@@ -14,10 +14,12 @@ Private meeting notes app. This repository implements the foundation, recording/
 2. Run `docker compose up -d`. MinIO is at `http://localhost:9001`; the init service creates the private `meeting-audio` bucket.
 3. Run `python3 -m venv .venv && .venv/bin/pip install -e 'apps/api[dev]'`.
 4. Run `.venv/bin/alembic -c apps/api/alembic.ini upgrade head`.
-5. In one terminal run `.venv/bin/uvicorn app.main:app --app-dir apps/api --reload --port 8000`. In another run `.venv/bin/python -m app.worker.main` with the same `.env`.
+5. In one terminal run `.venv/bin/uvicorn app.main:app --app-dir apps/api --reload --port 8000`. In another run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.main` with the same `.env`.
 6. Run `cd apps/web && npm install && cp .env.local.example .env.local && npm run dev`. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` to the same Supabase project. Open `http://localhost:3000`.
 
 Once dependencies and env files are set, `bash scripts/dev.sh` starts Compose, applies migrations, and launches API, worker, and web dev processes together.
+
+Run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.cleanup` hourly to purge expired raw audio, remove deleted meetings and abandoned drafts, and sweep old orphaned objects. Hosted deployment and smoke-test steps are in [deploy/README.md](deploy/README.md).
 
 The frontend signs in with an emailed one-time code or link. Create or invite that user in Supabase first. From the library, select **New meeting**, confirm the consent reminder, and start recording. The browser uploads once after Stop and keeps the captured file available for retry while the tab stays open. The worker transcribes approximate ten-minute chunks and saves the transcript, then produces a schema-validated summary. Both appear on the detail page as reviewable drafts. If summarization fails, the transcript stays available and retry resumes from it.
 
@@ -37,7 +39,7 @@ After changing API response schemas, run `.venv/bin/python scripts/export_openap
 cd apps/web && npm run lint && npm run typecheck && npm run build
 ```
 
-The API tests use temporary SQLite databases and locally generated asymmetric test tokens. Run the migration against PostgreSQL from Compose as an additional integration check.
+The API tests use temporary SQLite databases and locally generated asymmetric test tokens. CI runs the migration against PostgreSQL. A deployed smoke test still needs real Supabase, storage, FFmpeg, and provider credentials.
 
 ## Layout
 

@@ -276,3 +276,28 @@ def test_summary_retry_uses_saved_transcript_without_retranscription(worker_data
         assert db.get(Meeting, meeting_id).status == "ready"
         assert len(list(db.scalars(select(TranscriptSegment)))) == 3
         assert transcriber.calls == [0, 1, 2]
+
+
+def test_deletion_during_provider_call_prevents_transcript_write(worker_database, monkeypatch):
+    factory, meeting_id, source = worker_database
+    monkeypatch.setattr(runner, "inspect_audio", lambda path, mime: (mime, 1800000))
+
+    class DeleteDuringCall(FakeTranscriber):
+        def transcribe(self, path):
+            with factory() as db:
+                meeting = db.get(Meeting, meeting_id)
+                meeting.deleted_at = utc_now()
+                meeting.status = "deleted"
+                db.commit()
+            return "must not be saved"
+
+    assert runner.run_once(
+        "worker-a",
+        factory,
+        FakeStorage(source),
+        DeleteDuringCall(["x"]),
+        three_chunks,
+        heartbeat=False,
+    )
+    with factory() as db:
+        assert list(db.scalars(select(TranscriptSegment))) == []

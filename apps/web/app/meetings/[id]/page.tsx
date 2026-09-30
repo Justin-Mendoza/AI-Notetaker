@@ -2,7 +2,7 @@
 
 import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { components } from "@/lib/api-types";
 import { apiUrl, makeClient } from "@/lib/supabase";
@@ -13,6 +13,7 @@ type Summary = components["schemas"]["SummaryContent"];
 
 export default function MeetingDetail() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [client] = useState(makeClient);
   const [session, setSession] = useState<Session | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -97,6 +98,15 @@ export default function MeetingDetail() {
     await load(session.access_token);
   }
 
+  async function deleteMeeting() {
+    if (!session || !window.confirm("Permanently delete this meeting, its transcript, and draft notes?")) return;
+    const response = await fetch(`${apiUrl}/v1/meetings/${id}`, {
+      method: "DELETE", headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (response.status === 204) router.push("/");
+    else setMessage("Could not delete this meeting. Try again.");
+  }
+
   function downloadTranscript() {
     if (!transcript) return;
     const url = URL.createObjectURL(new Blob([transcript.full_text], { type: "text/plain" }));
@@ -138,6 +148,7 @@ export default function MeetingDetail() {
             <button className="rounded bg-teal-800 px-5 py-3 font-medium text-white" type="submit">Save title</button>
           </form>
           <p className="mt-3 text-sm text-slate-600">{new Date(detail.meeting.created_at).toLocaleString()}{detail.meeting.duration_ms ? ` · ${Math.round(detail.meeting.duration_ms / 60000)} min` : ""}</p>
+          <button className="mt-3 text-sm text-red-700 underline" onClick={() => void deleteMeeting()}>Delete meeting</button>
           <div role="status" aria-live="polite" className="mt-8 rounded-xl border border-teal-200 bg-teal-50 p-5"><strong className="capitalize">{detail.meeting.status}</strong><p className="mt-2 text-sm">{detail.meeting.status === "queued" ? "Your recording is saved and waiting to be transcribed." : detail.meeting.status === "draft" ? "This meeting has no uploaded recording yet." : detail.meeting.status === "uploading" ? "The recording is uploading. Keep the recording tab open." : detail.meeting.status === "failed" ? `Processing failed${detail.job?.last_error_code ? ` (${detail.job.last_error_code})` : ""}. Retry if the issue was temporary.` : detail.meeting.status === "summarizing" ? "The transcript is saved. Draft notes are being prepared." : detail.meeting.status === "ready" ? "Transcript and draft notes are ready for your review." : "Your meeting is being processed."}</p>{detail.meeting.status === "failed" && <button className="mt-4 rounded bg-teal-800 px-4 py-2 text-white" onClick={() => void retry()}>Retry processing</button>}</div>
           {detail.recording && <p className="mt-5 text-sm text-slate-600">Recording uploaded: {(detail.recording.size_bytes / 1_000_000).toFixed(1)} MB</p>}
           <section className="mt-6 rounded-2xl bg-white p-7 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-semibold">AI draft — review before sharing</h2>{summary && <button className="rounded border border-teal-800 px-4 py-2 text-teal-800" onClick={copyNotes}>Copy notes</button>}</div>{summary ? <div className="mt-6 space-y-6"><section><h3 className="font-semibold">Overview</h3><p className="mt-2">{summary.overview}</p></section><section><h3 className="font-semibold">Key points</h3>{summary.key_points.length ? <ul className="mt-2 list-disc pl-6">{summary.key_points.map((point, index) => <li key={index}>{point}</li>)}</ul> : <p className="mt-2 text-slate-500">None supported by the transcript.</p>}</section><section><h3 className="font-semibold">Decisions</h3>{summary.decisions.length ? <ul className="mt-2 list-disc pl-6">{summary.decisions.map((item, index) => <li key={index}>{item.text}{evidence(item.evidence_segment_ids)}</li>)}</ul> : <p className="mt-2 text-slate-500">No decisions identified.</p>}</section><section><h3 className="font-semibold">Action items</h3>{summary.action_items.length ? <ul className="mt-2 list-disc pl-6">{summary.action_items.map((item, index) => <li key={index}>{item.task}{item.owner && ` — ${item.owner}`}{item.due_date && ` · Due ${item.due_date}`}{evidence(item.evidence_segment_ids)}</li>)}</ul> : <p className="mt-2 text-slate-500">No action items identified.</p>}</section><section><h3 className="font-semibold">Open questions</h3>{summary.open_questions.length ? <ul className="mt-2 list-disc pl-6">{summary.open_questions.map((question, index) => <li key={index}>{question}</li>)}</ul> : <p className="mt-2 text-slate-500">No open questions identified.</p>}</section></div> : <p className="mt-3 text-slate-600">Draft notes will appear after summarization.</p>}</section>

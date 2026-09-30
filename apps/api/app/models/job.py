@@ -25,6 +25,8 @@ class ProcessingJob(Base):
     stage: Mapped[str] = mapped_column(String(24), nullable=False, default="transcribing")
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     cursor: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    manual_retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    manual_retry_window_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     run_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

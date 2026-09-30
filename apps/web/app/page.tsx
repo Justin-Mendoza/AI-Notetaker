@@ -74,6 +74,17 @@ export default function Home() {
     setMessage(error ? error.message : "Signed in.");
   }
 
+  async function deleteMeeting(id: string, meetingTitle: string) {
+    if (!session || !window.confirm(`Permanently delete “${meetingTitle}” and its notes?`)) return;
+    const response = await fetch(`${apiUrl}/v1/meetings/${id}`, {
+      method: "DELETE", headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (response.status === 204) {
+      setMeetings((current) => current.filter((meeting) => meeting.id !== id));
+      setMessage("Meeting deleted. Private audio cleanup is queued.");
+    } else setMessage("Could not delete the meeting. Try again.");
+  }
+
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-6 py-10">
       <header className="mb-16 flex items-center justify-between border-b border-slate-300 pb-5">
@@ -85,7 +96,7 @@ export default function Home() {
           <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-teal-700">Private workspace</p>
           <h1 className="mb-5 text-4xl font-semibold leading-tight">Keep the meeting. Find the next step.</h1>
           <p className="max-w-md text-lg leading-relaxed text-slate-700">A place for the meetings you choose to record. Your transcript and draft notes will appear here after processing.</p>
-          <p className="mt-6 max-w-md text-sm text-slate-600">Recording starts only when you choose to begin and confirm the consent reminder. Raw audio is removed after processing under the retention policy.</p>
+          <p className="mt-6 max-w-md text-sm text-slate-600">Recording starts only when you choose to begin and confirm the consent reminder. Raw audio is removed 24 hours after successful transcription; failed recordings are kept for up to seven days for retry.</p>
         </section>
         <section className="rounded-2xl bg-white p-7 shadow-sm" aria-label={session ? "Your meetings" : "Sign in"}>
           {!client ? (
@@ -97,7 +108,7 @@ export default function Home() {
                 <button className="rounded border border-teal-700 px-3 py-2 text-sm text-teal-800" onClick={() => void loadMeetings(session.access_token)}>Refresh</button>
               </div>
               <Link href="/meetings/new" className="mb-6 inline-block rounded bg-teal-800 px-5 py-3 font-medium text-white">New meeting</Link>
-              {meetings.length ? <ul className="space-y-3">{meetings.map((meeting) => <li className="rounded-lg border border-slate-200 p-4" key={meeting.id}><Link className="font-semibold text-teal-800 underline" href={`/meetings/${meeting.id}`}>{meeting.title}</Link><div className="mt-1 text-sm text-slate-600">{new Date(meeting.created_at).toLocaleString()} · {meeting.status}</div></li>)}</ul> : <p className="text-slate-600">No meetings yet. Start one when you are ready.</p>}
+              {meetings.length ? <ul className="space-y-3">{meetings.map((meeting) => <li className="rounded-lg border border-slate-200 p-4" key={meeting.id}><div className="flex items-start justify-between gap-3"><Link className="font-semibold text-teal-800 underline" href={`/meetings/${meeting.id}`}>{meeting.title}</Link><button className="text-sm text-red-700 underline" onClick={() => void deleteMeeting(meeting.id, meeting.title)}>Delete</button></div><div className="mt-1 text-sm text-slate-600">{new Date(meeting.created_at).toLocaleString()} · {meeting.status}</div></li>)}</ul> : <p className="text-slate-600">No meetings yet. Start one when you are ready.</p>}
               {nextCursor && <button className="mt-5 rounded border border-teal-700 px-4 py-2 text-teal-800" onClick={() => void loadMeetings(session.access_token, nextCursor)}>Load more</button>}
             </>
           ) : (

@@ -12,7 +12,8 @@ All `/v1` routes require a Supabase access token. Unauthorized requests receive 
 | `GET /v1/meetings/{id}/transcript` | Ordered approximate chunk ranges and full text once transcription completes. |
 | `GET /v1/meetings/{id}/summary` | Validated structured draft, available only when ready. |
 | `POST /v1/meetings/{id}/retry` | Requeue a failed transient job without duplicating saved segments. |
+| `DELETE /v1/meetings/{id}` | Deny reads immediately and queue permanent private data cleanup. |
 | `GET /healthz` | Process health. |
 | `GET /readyz` | Database readiness. |
 
-Deletion and retention cleanup arrive in the hardening milestone.
+Upload requests are bounded at 101 MB including multipart framing; audio itself is limited to 100 MB and 90 minutes. Per-owner meeting and upload rates and per-job manual retries can be configured through the server environment. The private `/internal/metrics` endpoint requires `METRICS_TOKEN` and reports job counts and overdue raw audio.

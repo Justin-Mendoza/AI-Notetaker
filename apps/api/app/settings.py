@@ -23,6 +23,11 @@ class Settings:
     stt_model: str = os.getenv("STT_MODEL", "gpt-4o-transcribe")
     summary_model: str = os.getenv("SUMMARY_MODEL", "gpt-4o-mini")
     raw_audio_retention_hours: int = int(os.getenv("RAW_AUDIO_RETENTION_HOURS", "24"))
+    failed_audio_retention_days: int = int(os.getenv("FAILED_AUDIO_RETENTION_DAYS", "7"))
+    max_meetings_per_hour: int = int(os.getenv("MAX_MEETINGS_PER_HOUR", "20"))
+    max_uploads_per_hour: int = int(os.getenv("MAX_UPLOADS_PER_HOUR", "10"))
+    max_manual_retries_per_hour: int = int(os.getenv("MAX_MANUAL_RETRIES_PER_HOUR", "3"))
+    metrics_token: str = os.getenv("METRICS_TOKEN", "")
 
     @property
     def issuer(self) -> str:
