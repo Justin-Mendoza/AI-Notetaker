@@ -1,0 +1,39 @@
+import uuid
+
+
+def test_meeting_create_list_and_owner_isolation(api_client):
+    client, identity = api_client
+    denied = client.post(
+        "/v1/meetings",
+        json={"title": "Planning", "consent_confirmed": False, "consent_policy_version": "v1"},
+    )
+    assert denied.status_code == 422
+    assert denied.json()["error"]["code"] == "INVALID_INPUT"
+
+    created = client.post(
+        "/v1/meetings",
+        json={"title": "  Planning  ", "consent_confirmed": True, "consent_policy_version": "v1"},
+    )
+    assert created.status_code == 201
+    meeting_id = created.json()["meeting"]["id"]
+    assert created.json()["meeting"]["title"] == "Planning"
+    assert len(client.get("/v1/meetings").json()["items"]) == 1
+    assert client.get(f"/v1/meetings/{meeting_id}").status_code == 200
+
+    identity["owner"] = uuid.uuid4()
+    assert client.get("/v1/meetings").json()["items"] == []
+    assert client.get(f"/v1/meetings/{meeting_id}").status_code == 404
+    assert client.patch(f"/v1/meetings/{meeting_id}", json={"title": "Stolen"}).status_code == 404
+
+
+def test_title_validation_and_rename(api_client):
+    client, _ = api_client
+    response = client.post(
+        "/v1/meetings", json={"consent_confirmed": True, "consent_policy_version": "v1"}
+    )
+    meeting_id = response.json()["meeting"]["id"]
+    assert response.json()["meeting"]["title"] == "Untitled meeting"
+    assert client.patch(f"/v1/meetings/{meeting_id}", json={"title": "  "}).status_code == 422
+    renamed = client.patch(f"/v1/meetings/{meeting_id}", json={"title": " New title "})
+    assert renamed.status_code == 200
+    assert renamed.json()["meeting"]["title"] == "New title"
