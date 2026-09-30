@@ -91,6 +91,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/meetings/{meeting_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Meeting */
+        post: operations["retry_meeting_v1_meetings__meeting_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/meetings/{meeting_id}/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Transcript */
+        get: operations["get_transcript_v1_meetings__meeting_id__transcript_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -123,6 +157,8 @@ export interface components {
         JobOut: {
             /** Attempts */
             attempts: number;
+            /** Cursor */
+            cursor: number;
             /**
              * Id
              * Format: uuid
@@ -130,6 +166,8 @@ export interface components {
             id: string;
             /** Last Error Code */
             last_error_code: string | null;
+            /** Stage */
+            stage: string;
             /** Status */
             status: string;
         };
@@ -210,6 +248,34 @@ export interface components {
         RenameMeeting: {
             /** Title */
             title: string;
+        };
+        /** RetryResponse */
+        RetryResponse: {
+            /** Status */
+            status: string;
+        };
+        /** SegmentOut */
+        SegmentOut: {
+            /** End Ms */
+            end_ms: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sequence No */
+            sequence_no: number;
+            /** Start Ms */
+            start_ms: number;
+            /** Text */
+            text: string;
+        };
+        /** TranscriptResponse */
+        TranscriptResponse: {
+            /** Full Text */
+            full_text: string;
+            /** Segments */
+            segments: components["schemas"]["SegmentOut"][];
         };
         /** UploadResponse */
         UploadResponse: {
@@ -445,6 +511,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_meeting_v1_meetings__meeting_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_transcript_v1_meetings__meeting_id__transcript_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptResponse"];
                 };
             };
             /** @description Validation Error */
