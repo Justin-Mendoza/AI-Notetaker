@@ -90,21 +90,33 @@ export default function MeetingDetail() {
 
   async function retry() {
     if (!session) return;
-    const response = await fetch(`${apiUrl}/v1/meetings/${id}/retry`, {
-      method: "POST", headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    if (!response.ok) { setMessage("This job cannot be retried. Check the error and recording."); return; }
-    setMessage("Processing queued again.");
-    await load(session.access_token);
+    try {
+      const response = await fetch(`${apiUrl}/v1/meetings/${id}/retry`, {
+        method: "POST", headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!response.ok) {
+        const payload = await response.json();
+        setMessage(payload.error?.message || "This job cannot be retried.");
+        return;
+      }
+      setMessage("Processing queued again.");
+      await load(session.access_token);
+    } catch {
+      setMessage("Could not retry processing. Check your connection and try again.");
+    }
   }
 
   async function deleteMeeting() {
     if (!session || !window.confirm("Permanently delete this meeting, its transcript, and draft notes?")) return;
-    const response = await fetch(`${apiUrl}/v1/meetings/${id}`, {
-      method: "DELETE", headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    if (response.status === 204) router.push("/");
-    else setMessage("Could not delete this meeting. Try again.");
+    try {
+      const response = await fetch(`${apiUrl}/v1/meetings/${id}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (response.status !== 204) throw new Error();
+      router.push("/");
+    } catch {
+      setMessage("Could not delete this meeting. Check your connection and try again.");
+    }
   }
 
   function downloadTranscript() {

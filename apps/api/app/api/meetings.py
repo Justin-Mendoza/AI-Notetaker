@@ -154,7 +154,10 @@ def owned_meeting(db: Session, meeting_id: uuid.UUID, owner_id: uuid.UUID) -> Me
 
 
 def encode_cursor(meeting: Meeting) -> str:
-    value = json.dumps([meeting.created_at.isoformat(), str(meeting.id)]).encode()
+    created_at = meeting.created_at
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=UTC)
+    value = json.dumps([created_at.isoformat(), str(meeting.id)]).encode()
     return base64.urlsafe_b64encode(value).decode().rstrip("=")
 
 
@@ -162,7 +165,10 @@ def decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
     try:
         raw = base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4))
         date_text, id_text = json.loads(raw)
-        return datetime.fromisoformat(date_text), uuid.UUID(id_text)
+        created_at = datetime.fromisoformat(date_text)
+        if created_at.tzinfo is None:
+            raise ValueError("cursor date needs a timezone")
+        return created_at, uuid.UUID(id_text)
     except (ValueError, TypeError, IndexError, UnicodeDecodeError, binascii.Error) as exc:
         raise ApiError(422, "INVALID_CURSOR", "The page cursor is invalid") from exc
 
