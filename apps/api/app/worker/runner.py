@@ -84,6 +84,16 @@ def claim_job(session_factory: SessionFactory, worker_id: str) -> uuid.UUID | No
             job.lease_until = None
             db.commit()
             return None
+        if job.status == "running" and job.attempts >= job.max_attempts:
+            job.status = "failed"
+            job.last_error_code = "WORKER_TIMEOUT"
+            job.locked_by = None
+            job.lease_until = None
+            job.updated_at = now
+            meeting.status = "failed"
+            meeting.updated_at = now
+            db.commit()
+            return None
         job.status = "running"
         job.attempts += 1
         job.locked_by = worker_id

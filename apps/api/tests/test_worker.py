@@ -313,6 +313,29 @@ def test_expired_lease_can_be_reclaimed_and_old_worker_cannot_write(worker_datab
         )
 
 
+def test_repeated_worker_crashes_stop_at_attempt_limit(worker_database):
+    factory, meeting_id, _ = worker_database
+    job_id = runner.claim_job(factory, "worker-a")
+    assert job_id is not None
+    for attempt in (2, 3):
+        with factory() as db:
+            job = db.get(ProcessingJob, job_id)
+            job.lease_until = utc_now() - timedelta(seconds=1)
+            db.commit()
+        assert runner.claim_job(factory, "worker-b") == job_id
+        with factory() as db:
+            assert db.get(ProcessingJob, job_id).attempts == attempt
+    with factory() as db:
+        job = db.get(ProcessingJob, job_id)
+        job.lease_until = utc_now() - timedelta(seconds=1)
+        db.commit()
+    assert runner.claim_job(factory, "worker-c") is None
+    with factory() as db:
+        job = db.get(ProcessingJob, job_id)
+        assert job.status == "failed" and job.last_error_code == "WORKER_TIMEOUT"
+        assert db.get(Meeting, meeting_id).status == "failed"
+
+
 def test_three_transient_failures_end_in_retryable_failed_state(worker_database, monkeypatch):
     factory, meeting_id, source = worker_database
     monkeypatch.setattr(runner, "inspect_audio", lambda path, mime: (mime, 1800000))
