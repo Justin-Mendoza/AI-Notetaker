@@ -34,6 +34,8 @@ jobs:
         run: pytest -q apps/api/tests
       - name: PostgreSQL migrations
         run: alembic -c apps/api/alembic.ini upgrade head && alembic -c apps/api/alembic.ini check
+      - name: Build API and worker image
+        run: docker build -f apps/api/Dockerfile -t meeting-notes-api:ci .
   web:
     runs-on: ubuntu-latest
     steps:
