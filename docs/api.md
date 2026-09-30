@@ -10,8 +10,9 @@ All `/v1` routes require a Supabase access token. Unauthorized requests receive 
 | `PATCH /v1/meetings/{id}` | Rename an owned meeting. |
 | `POST /v1/meetings/{id}/recording` | Multipart `file` and `duration_ms`, plus `Idempotency-Key`; validates and stores one private recording, then queues a job. |
 | `GET /v1/meetings/{id}/transcript` | Ordered approximate chunk ranges and full text once transcription completes. |
+| `GET /v1/meetings/{id}/summary` | Validated structured draft, available only when ready. |
 | `POST /v1/meetings/{id}/retry` | Requeue a failed transient job without duplicating saved segments. |
 | `GET /healthz` | Process health. |
 | `GET /readyz` | Database readiness. |
 
-Summary and delete routes arrive in later milestones.
+Deletion and retention cleanup arrive in the hardening milestone.

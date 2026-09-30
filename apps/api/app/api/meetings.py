@@ -20,9 +20,11 @@ from app.errors import ApiError
 from app.models.job import ProcessingJob
 from app.models.meeting import Meeting, utc_now
 from app.models.recording import Recording
+from app.models.summary import Summary
 from app.models.transcript import TranscriptSegment
 from app.services.media import MAX_DURATION_MS, MAX_FILE_BYTES, inspect_audio
 from app.services.storage import Storage, get_storage
+from app.services.summarization import SummaryContent
 
 router = APIRouter(prefix="/v1/meetings", tags=["meetings"])
 CurrentUser = Annotated[uuid.UUID, Depends(get_current_user)]
@@ -133,6 +135,10 @@ class RetryResponse(BaseModel):
     status: str
 
 
+class SummaryResponse(BaseModel):
+    summary: SummaryContent
+
+
 def owned_meeting(db: Session, meeting_id: uuid.UUID, owner_id: uuid.UUID) -> Meeting:
     meeting = db.scalar(
         select(Meeting).where(
@@ -217,12 +223,13 @@ def get_meeting(
     meeting = owned_meeting(db, meeting_id, owner_id)
     recording = db.scalar(select(Recording).where(Recording.meeting_id == meeting_id))
     job = db.scalar(select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id))
+    summary = db.scalar(select(Summary).where(Summary.meeting_id == meeting_id))
     return {
         "meeting": MeetingOut.model_validate(meeting),
         "recording": RecordingOut.model_validate(recording) if recording else None,
         "job": JobOut.model_validate(job) if job else None,
         "has_transcript": bool(job and job.stage == "summarizing"),
-        "has_summary": False,
+        "has_summary": bool(summary and meeting.status == "ready"),
     }
 
 
@@ -392,6 +399,21 @@ def get_transcript(
         "segments": [SegmentOut.model_validate(segment) for segment in segments],
         "full_text": "\n".join(segment.text for segment in segments if segment.text),
     }
+
+
+@router.get("/{meeting_id}/summary", response_model=SummaryResponse)
+def get_summary(
+    meeting_id: uuid.UUID,
+    owner_id: CurrentUser,
+    db: DbSession,
+) -> dict:
+    meeting = owned_meeting(db, meeting_id, owner_id)
+    if meeting.status != "ready":
+        raise ApiError(404, "SUMMARY_NOT_READY", "Summary is not ready")
+    summary = db.scalar(select(Summary).where(Summary.meeting_id == meeting_id))
+    if summary is None:
+        raise ApiError(404, "SUMMARY_NOT_READY", "Summary is not ready")
+    return {"summary": SummaryContent.model_validate(summary.content_json)}
 
 
 @router.post("/{meeting_id}/retry", status_code=202, response_model=RetryResponse)

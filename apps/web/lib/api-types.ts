@@ -108,6 +108,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/meetings/{meeting_id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Summary */
+        get: operations["get_summary_v1_meetings__meeting_id__summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/meetings/{meeting_id}/transcript": {
         parameters: {
             query?: never;
@@ -129,6 +146,17 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActionItem */
+        ActionItem: {
+            /** Due Date */
+            due_date: string | null;
+            /** Evidence Segment Ids */
+            evidence_segment_ids: string[];
+            /** Owner */
+            owner: string | null;
+            /** Task */
+            task: string;
+        };
         /** Body_upload_recording_v1_meetings__meeting_id__recording_post */
         Body_upload_recording_v1_meetings__meeting_id__recording_post: {
             /** Duration Ms */
@@ -147,6 +175,13 @@ export interface components {
             consent_policy_version: string;
             /** Title */
             title?: string | null;
+        };
+        /** Decision */
+        Decision: {
+            /** Evidence Segment Ids */
+            evidence_segment_ids: string[];
+            /** Text */
+            text: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -269,6 +304,23 @@ export interface components {
             start_ms: number;
             /** Text */
             text: string;
+        };
+        /** SummaryContent */
+        SummaryContent: {
+            /** Action Items */
+            action_items: components["schemas"]["ActionItem"][];
+            /** Decisions */
+            decisions: components["schemas"]["Decision"][];
+            /** Key Points */
+            key_points: string[];
+            /** Open Questions */
+            open_questions: string[];
+            /** Overview */
+            overview: string;
+        };
+        /** SummaryResponse */
+        SummaryResponse: {
+            summary: components["schemas"]["SummaryContent"];
         };
         /** TranscriptResponse */
         TranscriptResponse: {
@@ -542,6 +594,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RetryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_summary_v1_meetings__meeting_id__summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SummaryResponse"];
                 };
             };
             /** @description Validation Error */

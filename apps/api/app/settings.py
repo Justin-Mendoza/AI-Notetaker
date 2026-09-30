@@ -21,6 +21,7 @@ class Settings:
     bucket_secret_key: str = os.getenv("BUCKET_SECRET_KEY", "")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     stt_model: str = os.getenv("STT_MODEL", "gpt-4o-transcribe")
+    summary_model: str = os.getenv("SUMMARY_MODEL", "gpt-4o-mini")
     raw_audio_retention_hours: int = int(os.getenv("RAW_AUDIO_RETENTION_HOURS", "24"))
 
     @property
