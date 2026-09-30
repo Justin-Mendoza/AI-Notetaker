@@ -26,6 +26,8 @@ jobs:
           python-version: '3.12'
       - name: Install API
         run: pip install -e 'apps/api[dev]'
+      - name: Install FFmpeg for the long fixture
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Lint and format
         run: ruff check apps/api && ruff format --check apps/api
       - name: API tests

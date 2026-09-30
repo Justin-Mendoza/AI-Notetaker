@@ -371,9 +371,15 @@ def process_job(
             raise ProcessingFailure("UNSUPPORTED_STAGE", transient=False)
 
     if summary_input is not None:
-        with session_factory() as db:
-            ensure_active(db, job_id, worker_id)
+
+        def check_active() -> None:
+            with session_factory() as db:
+                ensure_active(db, job_id, worker_id)
+
+        check_active()
         summarizer = summarizer or OpenAISummarizer()
+        if isinstance(summarizer, OpenAISummarizer):
+            summarizer.check_active = check_active
         try:
             result = summarizer.summarize(summary_input)
         except SummaryError as exc:
@@ -453,6 +459,8 @@ def run_once(
         return False
     with session_factory() as db:
         claimed = db.get(ProcessingJob, job_id)
+        if claimed is None:
+            return False
         details = {
             "job_id": job_id,
             "meeting_id": claimed.meeting_id,

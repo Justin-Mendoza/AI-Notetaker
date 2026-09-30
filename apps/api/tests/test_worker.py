@@ -1,6 +1,8 @@
 import hashlib
+import shutil
+import subprocess
 import uuid
-from datetime import timedelta
+from datetime import UTC, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -124,6 +126,118 @@ def test_sixty_minute_audio_splits_in_order_under_limit(tmp_path, monkeypatch):
     assert all(0 < chunk.path.stat().st_size < audio.MAX_STT_BYTES for chunk in chunks)
 
 
+def test_sixty_minute_job_reaches_ready_with_all_six_chunks(worker_database, monkeypatch):
+    factory, meeting_id, source = worker_database
+    monkeypatch.setattr(runner, "inspect_audio", lambda path, mime: (mime, 3_600_000))
+
+    def six_chunks(path: Path, duration_ms: int, directory: Path):
+        assert duration_ms == 3_600_000
+        result = []
+        for number in range(6):
+            chunk_path = directory / f"chunk_{number:04d}.mp3"
+            chunk_path.write_bytes(b"audio")
+            result.append(
+                audio.AudioChunk(number, number * 600_000, (number + 1) * 600_000, chunk_path)
+            )
+        return result
+
+    transcriber = FakeTranscriber([f"Part {number}" for number in range(6)])
+    summarizer = FakeSummarizer(
+        {
+            "overview": "Six parts were reviewed.",
+            "key_points": [],
+            "decisions": [],
+            "action_items": [],
+            "open_questions": [],
+        }
+    )
+    storage = FakeStorage(source)
+    assert runner.run_once("worker", factory, storage, transcriber, six_chunks, heartbeat=False)
+    assert runner.run_once(
+        "worker",
+        factory,
+        storage,
+        transcriber,
+        six_chunks,
+        heartbeat=False,
+        summarizer=summarizer,
+    )
+    with factory() as db:
+        assert db.get(Meeting, meeting_id).status == "ready"
+        segments = list(
+            db.scalars(select(TranscriptSegment).order_by(TranscriptSegment.sequence_no))
+        )
+        assert [(segment.sequence_no, segment.text) for segment in segments] == [
+            (number, f"Part {number}") for number in range(6)
+        ]
+    assert transcriber.calls == list(range(6))
+    assert summarizer.calls == 1
+
+
+@pytest.mark.skipif(
+    not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="FFmpeg is not installed"
+)
+def test_real_sixty_minute_fixture_over_25_mb_processes_with_fake_providers(
+    worker_database, tmp_path
+):
+    factory, meeting_id, _ = worker_database
+    fixture = tmp_path / "sixty-minutes.mp3"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-nostdin",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=channel_layout=mono:sample_rate=16000",
+            "-t",
+            "3600",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "96k",
+            str(fixture),
+        ],
+        check=True,
+        timeout=300,
+    )
+    source = fixture.read_bytes()
+    assert len(source) > 25_000_000
+    with factory() as db:
+        recording = db.scalar(select(Recording).where(Recording.meeting_id == meeting_id))
+        recording.mime_type = "audio/mpeg"
+        recording.size_bytes = len(source)
+        recording.sha256 = hashlib.sha256(source).hexdigest()
+        db.commit()
+    transcriber = FakeTranscriber([f"Part {number}" for number in range(6)])
+    summarizer = FakeSummarizer(
+        {
+            "overview": "Six parts were reviewed.",
+            "key_points": [],
+            "decisions": [],
+            "action_items": [],
+            "open_questions": [],
+        }
+    )
+    storage = FakeStorage(source)
+    assert runner.run_once("worker", factory, storage, transcriber, heartbeat=False)
+    assert runner.run_once(
+        "worker", factory, storage, transcriber, heartbeat=False, summarizer=summarizer
+    )
+    with factory() as db:
+        assert db.get(Meeting, meeting_id).status == "ready"
+        segments = list(
+            db.scalars(select(TranscriptSegment).order_by(TranscriptSegment.sequence_no))
+        )
+        assert len(segments) == 6
+        assert [segment.text for segment in segments] == [f"Part {number}" for number in range(6)]
+    assert transcriber.calls == list(range(6))
+
+
 def test_retry_keeps_completed_segments_without_duplicate_calls(worker_database, monkeypatch):
     factory, meeting_id, source = worker_database
     monkeypatch.setattr(runner, "inspect_audio", lambda path, mime: (mime, 1800000))
@@ -220,6 +334,12 @@ def test_three_transient_failures_end_in_retryable_failed_state(worker_database,
             job = db.scalar(select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id))
             if attempt < 2:
                 assert job.status == "pending"
+                run_after = (
+                    job.run_after.replace(tzinfo=UTC)
+                    if job.run_after.tzinfo is None
+                    else job.run_after
+                )
+                assert (run_after - utc_now()).total_seconds() >= (4 if attempt == 0 else 9)
                 job.run_after = utc_now() - timedelta(seconds=1)
                 db.commit()
             else:

@@ -56,6 +56,23 @@ def test_response_refusal_and_invalid_json_are_retryable():
     assert error.value.code == "SUMMARY_INVALID"
 
 
+def test_summary_rechecks_deletion_before_each_provider_request():
+    summarizer = OpenAISummarizer.__new__(OpenAISummarizer)
+    summarizer.model = "fake-model"
+    calls = []
+    summarizer.client = SimpleNamespace(
+        responses=SimpleNamespace(create=lambda **kwargs: calls.append(kwargs))
+    )
+
+    def cancelled():
+        raise RuntimeError("meeting deleted")
+
+    summarizer.check_active = cancelled
+    with pytest.raises(RuntimeError, match="meeting deleted"):
+        summarizer._request("untrusted text", set(), "instructions")
+    assert calls == []
+
+
 def test_long_transcript_uses_chronological_slices_then_synthesis():
     class StubSummarizer(OpenAISummarizer):
         def __init__(self):
