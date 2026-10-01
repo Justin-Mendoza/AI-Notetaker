@@ -37,3 +37,15 @@ def test_title_validation_and_rename(api_client):
     renamed = client.patch(f"/v1/meetings/{meeting_id}", json={"title": " New title "})
     assert renamed.status_code == 200
     assert renamed.json()["meeting"]["title"] == "New title"
+
+
+def test_creation_rate_limit_is_per_owner(api_client):
+    client, identity = api_client
+    body = {"consent_confirmed": True, "consent_policy_version": "v1"}
+    for _ in range(20):
+        assert client.post("/v1/meetings", json=body).status_code == 201
+    limited = client.post("/v1/meetings", json=body)
+    assert limited.status_code == 429
+    assert limited.json()["error"]["code"] == "RATE_LIMITED"
+    identity["owner"] = uuid.uuid4()
+    assert client.post("/v1/meetings", json=body).status_code == 201

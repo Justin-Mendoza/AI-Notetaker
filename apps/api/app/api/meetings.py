@@ -4,13 +4,13 @@ import hashlib
 import json
 import tempfile
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Form, Header, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Header, Query, Response, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -25,6 +25,7 @@ from app.models.transcript import TranscriptSegment
 from app.services.media import MAX_DURATION_MS, MAX_FILE_BYTES, inspect_audio
 from app.services.storage import Storage, get_storage
 from app.services.summarization import SummaryContent
+from app.settings import settings
 
 router = APIRouter(prefix="/v1/meetings", tags=["meetings"])
 CurrentUser = Annotated[uuid.UUID, Depends(get_current_user)]
@@ -173,6 +174,13 @@ def create_meeting(
     db: DbSession,
 ) -> dict:
     now = utc_now()
+    recent = db.scalar(
+        select(func.count(Meeting.id)).where(
+            Meeting.owner_id == owner_id, Meeting.created_at >= now - timedelta(hours=1)
+        )
+    )
+    if recent >= settings.max_meetings_per_hour:
+        raise ApiError(429, "RATE_LIMITED", "Too many meetings were created recently")
     meeting = Meeting(
         owner_id=owner_id,
         title=body.title or "Untitled meeting",
@@ -264,6 +272,16 @@ def upload_recording(
         if prior.upload_idempotency_key == idempotency_key:
             return {"meeting_id": meeting_id, "status": "queued"}
         raise ApiError(409, "RECORDING_EXISTS", "This meeting already has a recording")
+    recent_uploads = db.scalar(
+        select(func.count(Recording.id))
+        .join(Meeting, Recording.meeting_id == Meeting.id)
+        .where(
+            Meeting.owner_id == owner_id,
+            Recording.uploaded_at >= utc_now() - timedelta(hours=1),
+        )
+    )
+    if recent_uploads >= settings.max_uploads_per_hour:
+        raise ApiError(429, "RATE_LIMITED", "Too many recordings were uploaded recently")
     if meeting.status not in {"draft", "uploading"} or (
         meeting.status == "uploading" and meeting.upload_key != idempotency_key
     ):
@@ -325,7 +343,7 @@ def upload_recording(
                 sha256=digest.hexdigest(),
                 upload_idempotency_key=idempotency_key,
                 uploaded_at=now,
-                purge_after=now + timedelta(days=7),
+                purge_after=now + timedelta(days=settings.failed_audio_retention_days),
             )
         )
         db.add(
@@ -430,7 +448,19 @@ def retry_meeting(
         raise ApiError(409, "INVALID_STATE", "This meeting cannot be retried")
     if job.last_error_code in {"INVALID_AUDIO", "LIMIT_EXCEEDED", "MISSING_RECORDING"}:
         raise ApiError(409, "PERMANENT_FAILURE", "This recording cannot be retried")
+    recording = db.scalar(select(Recording).where(Recording.meeting_id == meeting_id))
+    if job.stage == "transcribing" and (recording is None or recording.deleted_at is not None):
+        raise ApiError(409, "RECORDING_EXPIRED", "The recording is no longer available")
     now = utc_now()
+    window_at = job.manual_retry_window_at
+    if window_at and window_at.tzinfo is None:
+        window_at = window_at.replace(tzinfo=UTC)
+    if window_at is None or window_at < now - timedelta(hours=1):
+        job.manual_retry_window_at = now
+        job.manual_retry_count = 0
+    if job.manual_retry_count >= settings.max_manual_retries_per_hour:
+        raise ApiError(429, "RATE_LIMITED", "Wait before retrying this meeting again")
+    job.manual_retry_count += 1
     job.status = "pending"
     job.attempts = 0
     job.run_after = now
@@ -442,3 +472,32 @@ def retry_meeting(
     meeting.updated_at = now
     db.commit()
     return {"status": meeting.status}
+
+
+@router.delete("/{meeting_id}", status_code=204)
+def delete_meeting(
+    meeting_id: uuid.UUID,
+    owner_id: CurrentUser,
+    db: DbSession,
+) -> Response:
+    meeting = db.scalar(
+        select(Meeting)
+        .where(Meeting.id == meeting_id, Meeting.owner_id == owner_id, Meeting.deleted_at.is_(None))
+        .with_for_update()
+    )
+    if meeting is None:
+        raise ApiError(404, "MEETING_NOT_FOUND", "Meeting not found")
+    now = utc_now()
+    meeting.deleted_at = now
+    meeting.status = "deleted"
+    meeting.updated_at = now
+    job = db.scalar(
+        select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id).with_for_update()
+    )
+    if job:
+        job.status = "completed"
+        job.lease_until = None
+        job.locked_by = None
+        job.updated_at = now
+    db.commit()
+    return Response(status_code=204)

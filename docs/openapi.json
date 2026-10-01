@@ -756,6 +756,45 @@
       }
     },
     "/v1/meetings/{meeting_id}": {
+      "delete": {
+        "operationId": "delete_meeting_v1_meetings__meeting_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete Meeting",
+        "tags": [
+          "meetings"
+        ]
+      },
       "get": {
         "operationId": "get_meeting_v1_meetings__meeting_id__get",
         "parameters": [

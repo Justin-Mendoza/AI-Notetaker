@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 
@@ -34,6 +36,12 @@ class Storage:
 
     def download(self, key: str, path: Path) -> None:
         self.client.download_file(self.bucket, key, str(path))
+
+    def list_objects(self) -> Iterator[tuple[str, datetime]]:
+        paginator = self.client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket):
+            for item in page.get("Contents", []):
+                yield item["Key"], item["LastModified"]
 
 
 @lru_cache

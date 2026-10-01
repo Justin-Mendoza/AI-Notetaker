@@ -1,9 +1,11 @@
+import hashlib
 import uuid
 
 from app.db.session import get_db
 from app.main import app
 from app.models.job import ProcessingJob
 from app.models.meeting import Meeting, utc_now
+from app.models.recording import Recording
 from app.models.summary import Summary
 from app.models.transcript import TranscriptSegment
 
@@ -84,6 +86,18 @@ def test_failed_job_retry_is_owner_scoped(api_client):
             last_error_code="STT_TEMPORARY",
             created_at=now,
             updated_at=now,
+        )
+    )
+    db.add(
+        Recording(
+            meeting_id=meeting_id,
+            object_key=f"private/{meeting_id}.webm",
+            mime_type="audio/webm",
+            size_bytes=4,
+            sha256=hashlib.sha256(b"test").hexdigest(),
+            upload_idempotency_key=uuid.uuid4(),
+            uploaded_at=now,
+            purge_after=now,
         )
     )
     db.commit()

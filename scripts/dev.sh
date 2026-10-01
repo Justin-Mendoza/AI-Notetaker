@@ -7,7 +7,7 @@ docker compose up -d
 
 .venv/bin/uvicorn app.main:app --app-dir apps/api --reload --port 8000 &
 api_pid=$!
-.venv/bin/python -m app.worker.main &
+PYTHONPATH=apps/api .venv/bin/python -m app.worker.main &
 worker_pid=$!
 (cd apps/web && npm run dev) &
 web_pid=$!
