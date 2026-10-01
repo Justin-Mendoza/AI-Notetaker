@@ -1,4 +1,5 @@
 import json
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -110,3 +111,42 @@ def test_kyma_rejects_invalid_notes():
     with pytest.raises(summarization.SummaryError) as error:
         summarizer._request("transcript", set(), "instructions")
     assert error.value.code == "SUMMARY_INVALID"
+
+
+def test_kyma_retries_altered_evidence_without_saving_it():
+    segment_id = uuid.UUID("00000000-0000-4000-8000-000000000002")
+    requests = []
+
+    def create(**kwargs):
+        requests.append(kwargs)
+        evidence = "W" + str(segment_id) if len(requests) == 1 else str(segment_id)
+        content = {
+            "overview": "The group chose a cover.",
+            "key_points": [],
+            "decisions": [{"text": "Use the blue cover.", "evidence_segment_ids": [evidence]}],
+            "action_items": [],
+            "open_questions": [],
+        }
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    finish_reason="stop",
+                    message=SimpleNamespace(content=json.dumps(content), refusal=None),
+                )
+            ]
+        )
+
+    summarizer = summarization.KymaSummarizer.__new__(summarization.KymaSummarizer)
+    summarizer.model = "qwen3.7-flash"
+    summarizer.check_active = None
+    summarizer.client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create))
+    )
+    result = summarizer._request("synthetic transcript", {segment_id}, "instructions")
+    assert result.decisions[0].evidence_segment_ids == [segment_id]
+    assert len(requests) == 2
+    schema = requests[0]["response_format"]["json_schema"]["schema"]
+    assert schema["properties"]["decisions"]["items"]["properties"]["evidence_segment_ids"][
+        "items"
+    ]["enum"] == [str(segment_id)]
+    assert requests[0]["max_tokens"] == 6000
