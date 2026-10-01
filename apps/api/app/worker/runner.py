@@ -17,9 +17,20 @@ from app.errors import ApiError
 from app.models.job import ProcessingJob
 from app.models.meeting import Meeting, utc_now
 from app.models.recording import Recording
+from app.models.summary import Summary
 from app.models.transcript import TranscriptSegment
 from app.services.media import inspect_audio
 from app.services.storage import Storage, get_storage
+from app.services.summarization import (
+    PROMPT_VERSION,
+    SCHEMA_VERSION,
+    OpenAISummarizer,
+    Summarizer,
+    SummaryContent,
+    SummaryError,
+    SummarySegment,
+    validate_summary,
+)
 from app.services.transcription import OpenAITranscriber, Transcriber, TranscriptionError
 from app.settings import settings
 from app.worker.audio import AudioChunk, AudioProcessingError, split_audio
@@ -79,8 +90,39 @@ def claim_job(session_factory: SessionFactory, worker_id: str) -> uuid.UUID | No
         if job.stage == "transcribing":
             meeting.status = "transcribing"
             meeting.updated_at = now
+        elif job.stage == "summarizing":
+            meeting.status = "summarizing"
+            meeting.updated_at = now
         db.commit()
         return job.id
+
+
+def requeue_incomplete_summaries(session_factory: SessionFactory) -> int:
+    """Move jobs completed by the transcription-only worker to the summary stage."""
+    count = 0
+    with session_factory() as db:
+        jobs = list(
+            db.scalars(
+                select(ProcessingJob)
+                .where(ProcessingJob.stage == "summarizing", ProcessingJob.status == "completed")
+                .with_for_update(skip_locked=True)
+            )
+        )
+        for job in jobs:
+            meeting = db.get(Meeting, job.meeting_id)
+            summary = db.scalar(select(Summary).where(Summary.meeting_id == job.meeting_id))
+            if (
+                meeting
+                and meeting.deleted_at is None
+                and meeting.status == "summarizing"
+                and not summary
+            ):
+                job.status = "pending"
+                job.run_after = utc_now()
+                job.updated_at = utc_now()
+                count += 1
+        db.commit()
+    return count
 
 
 def renew_lease(session_factory: SessionFactory, job_id: uuid.UUID, worker_id: str) -> bool:
@@ -206,14 +248,61 @@ def complete_transcription(
             raise ProcessingFailure("MISSING_RECORDING", transient=False)
         now = utc_now()
         job.stage = "summarizing"
-        job.status = "completed"
+        job.status = "pending"
+        job.attempts = 0
         job.cursor = count
+        job.run_after = now
         job.lease_until = None
         job.locked_by = None
         job.updated_at = now
         meeting.status = "summarizing"
         meeting.updated_at = now
         recording.purge_after = now + timedelta(hours=settings.raw_audio_retention_hours)
+        db.commit()
+
+
+def save_summary(
+    session_factory: SessionFactory,
+    job_id: uuid.UUID,
+    worker_id: str,
+    content: SummaryContent,
+    summarizer: Summarizer,
+) -> None:
+    with session_factory() as db:
+        job, meeting = ensure_active(db, job_id, worker_id, lock=True)
+        if job.stage != "summarizing":
+            raise ProcessingFailure("INVALID_STAGE", transient=False)
+        segment_ids = set(
+            db.scalars(
+                select(TranscriptSegment.id).where(TranscriptSegment.meeting_id == meeting.id)
+            )
+        )
+        validated = validate_summary(content.model_dump(mode="json"), segment_ids)
+        now = utc_now()
+        stored = db.scalar(select(Summary).where(Summary.meeting_id == meeting.id))
+        if stored is None:
+            stored = Summary(
+                meeting_id=meeting.id,
+                schema_version=SCHEMA_VERSION,
+                prompt_version=PROMPT_VERSION,
+                model=summarizer.model,
+                content_json=validated.model_dump(mode="json"),
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(stored)
+        else:
+            stored.schema_version = SCHEMA_VERSION
+            stored.prompt_version = PROMPT_VERSION
+            stored.model = summarizer.model
+            stored.content_json = validated.model_dump(mode="json")
+            stored.updated_at = now
+        job.status = "completed"
+        job.lease_until = None
+        job.locked_by = None
+        job.updated_at = now
+        meeting.status = "ready"
+        meeting.updated_at = now
         db.commit()
 
 
@@ -239,7 +328,7 @@ def mark_failure(
             delay = min(300, 5 * 2 ** (job.attempts - 1)) + random.uniform(0, 1)
             job.status = "pending"
             job.run_after = now + timedelta(seconds=delay)
-            meeting.status = "queued"
+            meeting.status = "queued" if job.stage == "transcribing" else "summarizing"
         else:
             job.status = "failed"
             meeting.status = "failed"
@@ -254,7 +343,42 @@ def process_job(
     storage: Storage,
     transcriber: Transcriber,
     splitter: Splitter,
+    summarizer: Summarizer | None = None,
 ) -> None:
+    with session_factory() as db:
+        job, meeting = ensure_active(db, job_id, worker_id)
+        if job.stage == "summarizing":
+            segments = list(
+                db.scalars(
+                    select(TranscriptSegment)
+                    .where(TranscriptSegment.meeting_id == meeting.id)
+                    .order_by(TranscriptSegment.sequence_no)
+                )
+            )
+            if not segments or [segment.sequence_no for segment in segments] != list(
+                range(job.cursor)
+            ):
+                raise ProcessingFailure("TRANSCRIPT_INCOMPLETE", transient=True)
+            summary_input = [
+                SummarySegment(segment.id, segment.start_ms, segment.end_ms, segment.text)
+                for segment in segments
+            ]
+        else:
+            summary_input = None
+        if summary_input is None and job.stage != "transcribing":
+            raise ProcessingFailure("UNSUPPORTED_STAGE", transient=False)
+
+    if summary_input is not None:
+        with session_factory() as db:
+            ensure_active(db, job_id, worker_id)
+        summarizer = summarizer or OpenAISummarizer()
+        try:
+            result = summarizer.summarize(summary_input)
+        except SummaryError as exc:
+            raise ProcessingFailure(exc.code, exc.transient) from exc
+        save_summary(session_factory, job_id, worker_id, result, summarizer)
+        return
+
     with session_factory() as db:
         job, meeting = ensure_active(db, job_id, worker_id)
         if job.stage != "transcribing":
@@ -320,6 +444,7 @@ def run_once(
     transcriber: Transcriber | None = None,
     splitter: Splitter = split_audio,
     heartbeat: bool = True,
+    summarizer: Summarizer | None = None,
 ) -> bool:
     job_id = claim_job(session_factory, worker_id)
     if job_id is None:
@@ -329,13 +454,19 @@ def run_once(
         transcriber = transcriber or OpenAITranscriber()
         if heartbeat:
             with LeaseHeartbeat(session_factory, job_id, worker_id):
-                process_job(session_factory, job_id, worker_id, storage, transcriber, splitter)
+                process_job(
+                    session_factory, job_id, worker_id, storage, transcriber, splitter, summarizer
+                )
         else:
-            process_job(session_factory, job_id, worker_id, storage, transcriber, splitter)
+            process_job(
+                session_factory, job_id, worker_id, storage, transcriber, splitter, summarizer
+            )
     except (JobCancelled, LeaseLost):
         pass
     except ProcessingFailure as exc:
         mark_failure(session_factory, job_id, worker_id, exc)
+    except SummaryError as exc:
+        mark_failure(session_factory, job_id, worker_id, ProcessingFailure(exc.code, exc.transient))
     except TranscriptionError as exc:
         mark_failure(session_factory, job_id, worker_id, ProcessingFailure(exc.code, exc.transient))
     except Exception:

@@ -1,6 +1,6 @@
 # Meeting Notes
 
-Private meeting notes app. This repository implements the foundation, recording/upload, and transcription milestones of [the design](docs/design.md). Structured summaries and production hardening follow in the next stacked changes.
+Private meeting notes app. This repository implements the foundation, recording/upload, transcription, and structured-notes milestones of [the design](docs/design.md). Production hardening follows in the next stacked change.
 
 ## Requirements
 
@@ -19,7 +19,7 @@ Private meeting notes app. This repository implements the foundation, recording/
 
 Once dependencies and env files are set, `bash scripts/dev.sh` starts Compose, applies migrations, and launches API, worker, and web dev processes together.
 
-The frontend signs in with an emailed one-time code or link. Create or invite that user in Supabase first. From the library, select **New meeting**, confirm the consent reminder, and start recording. The browser uploads once after Stop and keeps the captured file available for retry while the tab stays open. The worker transcribes approximate ten-minute chunks and saves the transcript. This branch stops before structured notes, so transcribed meetings remain in `summarizing` until the next milestone.
+The frontend signs in with an emailed one-time code or link. Create or invite that user in Supabase first. From the library, select **New meeting**, confirm the consent reminder, and start recording. The browser uploads once after Stop and keeps the captured file available for retry while the tab stays open. The worker transcribes approximate ten-minute chunks and saves the transcript, then produces a schema-validated summary. Both appear on the detail page as reviewable drafts. If summarization fails, the transcript stays available and retry resumes from it.
 
 For non-sensitive local audio, run `bash scripts/generate_fixture.sh 120 /private/tmp/meeting-short.mp3`. Use `3600` for a 60-minute file above the speech API's per-file limit. The worker submits only compressed chunks below 20 MB.
 

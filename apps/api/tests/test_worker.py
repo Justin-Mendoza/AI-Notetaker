@@ -14,6 +14,7 @@ from app.models.job import ProcessingJob
 from app.models.meeting import Meeting, utc_now
 from app.models.recording import Recording
 from app.models.transcript import TranscriptSegment
+from app.services.summarization import FakeSummarizer
 from app.services.transcription import FakeTranscriber, TranscriptionError
 from app.worker import audio, runner
 
@@ -143,10 +144,36 @@ def test_retry_keeps_completed_segments_without_duplicate_calls(worker_database,
             db.scalars(select(TranscriptSegment).order_by(TranscriptSegment.sequence_no))
         )
         meeting = db.get(Meeting, meeting_id)
-        assert job.status == "completed" and job.stage == "summarizing" and job.cursor == 3
+        assert job.status == "pending" and job.stage == "summarizing" and job.cursor == 3
+        assert job.attempts == 0
         assert meeting.status == "summarizing"
         assert [segment.text for segment in segments] == ["first", "second", "third"]
         assert transcriber.calls == [0, 1, 1, 2]
+
+    summary = FakeSummarizer(
+        {
+            "overview": "The group reviewed three points.",
+            "key_points": ["Three points were discussed."],
+            "decisions": [],
+            "action_items": [],
+            "open_questions": [],
+        }
+    )
+    assert runner.run_once(
+        "worker-a",
+        factory,
+        storage,
+        transcriber,
+        three_chunks,
+        heartbeat=False,
+        summarizer=summary,
+    )
+    with factory() as db:
+        assert db.get(Meeting, meeting_id).status == "ready"
+        job = db.scalar(select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id))
+        assert job.status == "completed"
+        assert transcriber.calls == [0, 1, 1, 2]
+        assert summary.calls == 1
 
 
 def test_expired_lease_can_be_reclaimed_and_old_worker_cannot_write(worker_database):
@@ -198,3 +225,54 @@ def test_three_transient_failures_end_in_retryable_failed_state(worker_database,
             else:
                 assert job.status == "failed" and job.attempts == 3
                 assert db.get(Meeting, meeting_id).status == "failed"
+
+
+def test_summary_retry_uses_saved_transcript_without_retranscription(worker_database, monkeypatch):
+    factory, meeting_id, source = worker_database
+    monkeypatch.setattr(runner, "inspect_audio", lambda path, mime: (mime, 1800000))
+    transcriber = FakeTranscriber(["first", "second", "third"])
+    storage = FakeStorage(source)
+    assert runner.run_once("worker-a", factory, storage, transcriber, three_chunks, heartbeat=False)
+    assert transcriber.calls == [0, 1, 2]
+
+    bad_summary = FakeSummarizer({"overview": "Missing required fields"})
+    assert runner.run_once(
+        "worker-a",
+        factory,
+        storage,
+        transcriber,
+        three_chunks,
+        heartbeat=False,
+        summarizer=bad_summary,
+    )
+    with factory() as db:
+        job = db.scalar(select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id))
+        assert job.status == "pending" and job.stage == "summarizing"
+        assert job.last_error_code == "SUMMARY_INVALID"
+        assert db.get(Meeting, meeting_id).status == "summarizing"
+        assert len(list(db.scalars(select(TranscriptSegment)))) == 3
+        job.run_after = utc_now() - timedelta(seconds=1)
+        db.commit()
+
+    good_summary = FakeSummarizer(
+        {
+            "overview": "The group discussed three points.",
+            "key_points": [],
+            "decisions": [],
+            "action_items": [],
+            "open_questions": [],
+        }
+    )
+    assert runner.run_once(
+        "worker-a",
+        factory,
+        storage,
+        transcriber,
+        three_chunks,
+        heartbeat=False,
+        summarizer=good_summary,
+    )
+    with factory() as db:
+        assert db.get(Meeting, meeting_id).status == "ready"
+        assert len(list(db.scalars(select(TranscriptSegment)))) == 3
+        assert transcriber.calls == [0, 1, 2]

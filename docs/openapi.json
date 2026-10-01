@@ -1,6 +1,54 @@
 {
   "components": {
     "schemas": {
+      "ActionItem": {
+        "additionalProperties": false,
+        "properties": {
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "evidence_segment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Segment Ids",
+            "type": "array"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "task": {
+            "minLength": 1,
+            "title": "Task",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task",
+          "owner",
+          "due_date",
+          "evidence_segment_ids"
+        ],
+        "title": "ActionItem",
+        "type": "object"
+      },
       "Body_upload_recording_v1_meetings__meeting_id__recording_post": {
         "properties": {
           "duration_ms": {
@@ -52,6 +100,30 @@
           "consent_policy_version"
         ],
         "title": "CreateMeeting",
+        "type": "object"
+      },
+      "Decision": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_segment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Segment Ids",
+            "type": "array"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "evidence_segment_ids"
+        ],
+        "title": "Decision",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -370,6 +442,65 @@
           "text"
         ],
         "title": "SegmentOut",
+        "type": "object"
+      },
+      "SummaryContent": {
+        "additionalProperties": false,
+        "properties": {
+          "action_items": {
+            "items": {
+              "$ref": "#/components/schemas/ActionItem"
+            },
+            "title": "Action Items",
+            "type": "array"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/Decision"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "key_points": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Key Points",
+            "type": "array"
+          },
+          "open_questions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Open Questions",
+            "type": "array"
+          },
+          "overview": {
+            "minLength": 1,
+            "title": "Overview",
+            "type": "string"
+          }
+        },
+        "required": [
+          "overview",
+          "key_points",
+          "decisions",
+          "action_items",
+          "open_questions"
+        ],
+        "title": "SummaryContent",
+        "type": "object"
+      },
+      "SummaryResponse": {
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/SummaryContent"
+          }
+        },
+        "required": [
+          "summary"
+        ],
+        "title": "SummaryResponse",
         "type": "object"
       },
       "TranscriptResponse": {
@@ -839,6 +970,54 @@
           }
         ],
         "summary": "Retry Meeting",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/summary": {
+      "get": {
+        "operationId": "get_summary_v1_meetings__meeting_id__summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Summary",
         "tags": [
           "meetings"
         ]
