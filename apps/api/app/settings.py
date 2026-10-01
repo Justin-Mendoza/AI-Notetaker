@@ -12,10 +12,7 @@ class Settings:
         "DATABASE_URL", "postgresql+psycopg://meeting_notes:change-me@localhost:5432/meeting_notes"
     )
     allowed_web_origin: str = os.getenv("ALLOWED_WEB_ORIGIN", "http://localhost:3000")
-    bucket_endpoint: str = os.getenv("BUCKET_ENDPOINT", "http://localhost:9000")
-    bucket_name: str = os.getenv("BUCKET_NAME", "meeting-audio")
-    bucket_access_key: str = os.getenv("BUCKET_ACCESS_KEY", "")
-    bucket_secret_key: str = os.getenv("BUCKET_SECRET_KEY", "")
+    local_recording_dir: str = os.getenv("LOCAL_RECORDING_DIR", "")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     stt_provider: str = os.getenv("STT_PROVIDER", "openai")
     stt_model: str = os.getenv("STT_MODEL", "gpt-4o-transcribe")

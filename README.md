@@ -11,22 +11,22 @@ The supplied `.env.example` selects [Whisper Local for transcription and Qwen th
 
 ## Local startup
 
-1. Copy `.env.example` to `.env`. Set matching `POSTGRES_PASSWORD`/`DATABASE_URL` values, fresh local bucket credentials, and `KYMA_API_KEY`. Keep all server credentials out of `apps/web/.env.local`.
-2. Run `docker compose up -d`. MinIO is at `http://localhost:9001`; the init service creates the private `meeting-audio` bucket.
+1. Copy `.env.example` to `.env`. Set matching `POSTGRES_PASSWORD`/`DATABASE_URL` values and `KYMA_API_KEY`. Keep provider credentials out of `apps/web/.env.local`. Recordings are stored under the ignored `.data/recordings` directory with owner-only file permissions; set `LOCAL_RECORDING_DIR` to an absolute path if you want them elsewhere.
+2. Run `docker compose up -d` to start PostgreSQL on loopback.
 3. Run `python3 -m venv .venv && .venv/bin/pip install -e 'apps/api[dev]'`.
 4. Run `.venv/bin/alembic -c apps/api/alembic.ini upgrade head`.
 5. Start Whisper Local with `./scripts/start-whisper-local.sh`. In another terminal run `.venv/bin/uvicorn app.main:app --app-dir apps/api --reload --host 127.0.0.1 --port 8000`. In another run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.main` with the same `.env`.
 6. Run `cd apps/web && npm install && npm run dev -- --hostname 127.0.0.1`. Open `http://localhost:3000` on this Mac.
 
-Once dependencies and env files are set, `bash scripts/dev.sh` starts Compose, applies migrations, and launches API, worker, and web dev processes together. Start Whisper Local separately.
+Once dependencies and env files are set, `bash scripts/dev.sh` starts PostgreSQL, applies migrations, starts Whisper Local if needed, and launches the API, worker, and web app together. It checks that `KYMA_API_KEY` is set before starting.
 
-Run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.cleanup` hourly to purge expired raw audio, remove deleted meetings and abandoned drafts, and sweep old orphaned objects. Hosted deployment and smoke-test steps are in [deploy/README.md](deploy/README.md).
+Run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.cleanup` hourly to purge expired raw audio, remove deleted meetings and abandoned drafts, and sweep old recording files. Local operation and smoke-test steps are in [deploy/README.md](deploy/README.md).
 
 From the library, select **New meeting**, confirm the consent reminder, and start recording. The browser uploads once after Stop and keeps the captured file available for retry while the tab stays open. The worker transcribes approximate ten-minute chunks and saves the transcript, then produces a schema-validated summary. Both appear on the detail page as reviewable drafts. If summarization fails, the transcript stays available and retry resumes from it.
 
 For non-sensitive local audio, run `bash scripts/generate_fixture.sh 120 /private/tmp/meeting-short.mp3`. Use `3600` for a 60-minute file above the speech API's per-file limit. The worker submits only compressed chunks below 20 MB.
 
-`/healthz` checks the API process; `/readyz` checks database connectivity. FastAPI publishes OpenAPI at `/openapi.json` and an interactive API page at `/docs`. `/v1` routes accept only loopback clients using `localhost` or `127.0.0.1` as the API host. Browser requests must come from `ALLOWED_WEB_ORIGIN`; write requests require its `Origin` header. Run the web app, API, PostgreSQL, and MinIO bound to loopback. Anyone with access to the local OS account or local processes may be able to access the app; this is a personal Mac setup, not a network service.
+`/healthz` checks the API process; `/readyz` checks database connectivity. FastAPI publishes OpenAPI at `/openapi.json` and an interactive API page at `/docs`. `/v1` routes accept only loopback clients using `localhost` or `127.0.0.1` as the API host. Browser requests must come from `ALLOWED_WEB_ORIGIN`; write requests require its `Origin` header. Run the web app, API, and PostgreSQL bound to loopback. Anyone with access to the local OS account or local processes may be able to access the app; this is a personal Mac setup, not a network service.
 
 After changing API response schemas, run `.venv/bin/python scripts/export_openapi.py` and then `cd apps/web && npm run api:types` to refresh the checked-in frontend types.
 

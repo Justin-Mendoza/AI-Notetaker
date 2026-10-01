@@ -28,7 +28,7 @@ The default worker uses OpenAI `gpt-4o-transcribe` and `gpt-4o-mini`. For the pe
 
 3. Set `WHISPER_LOCAL_MODEL_LABEL` to the model actually selected in Whisper Local, so stored transcript metadata is accurate. Its local endpoint accepts `model=whisper-1` but runs the model selected in its own settings. Use a short non-sensitive meeting to check the transcript and Kyma's JSON schema response, then benchmark a 60-minute recording on the actual Mac.
 
-The worker still downloads meeting audio from this app's private bucket to temporary disk. Whisper Local transcribes it on that Mac; the audio is not sent to a transcription API. **The transcript is sent to Kyma** for summary generation. Kyma is an API aggregator, so review its handling of meeting text before using sensitive recordings. Keep the Whisper Local server bound to loopback. It has no API authentication, and this app intentionally rejects a non-loopback URL.
+The worker reads meeting audio from this app's private recording directory into temporary disk space. Whisper Local transcribes it on that Mac; the audio is not sent to a transcription API. **The transcript is sent to Kyma** for summary generation. Kyma is an API aggregator, so review its handling of meeting text before using sensitive recordings. Keep the Whisper Local server bound to loopback. It has no API authentication, and this app intentionally rejects a non-loopback URL.
 
 This version runs the worker and Whisper Local on the same Mac. A hosted worker container cannot reach the Mac's Whisper Local server using `127.0.0.1`, and the app's API has no hosted authentication. Do not expose either local service to the network.
 

@@ -10,6 +10,6 @@ Updated 2026-10-01. The original [design](design.md) described hosted accounts; 
 | Refresh during processing | Status, transcript, and summary are persisted; browser polls the API. | Local smoke test required |
 | Provider retry and failed-summary recovery | Worker tests cover backoff, saved segments, and summary retry without retranscription. | Automated check; real-provider smoke needed |
 | Invalid media and recording failures | API validation, lease recovery, and browser error handling are implemented. | Automated check with manual browser cases |
-| Delete and retention cleanup | Tests cover immediate unreadability, cascading row removal, and storage delete calls. | Automated check; local MinIO verification needed |
+| Delete and retention cleanup | Tests cover immediate unreadability, cascading row removal, and private file deletion. | Automated check; local retention smoke test needed |
 
 Complete the [local smoke test](../deploy/README.md) before treating the app as ready for personal meetings. Kyma credentials and a review of its transcript handling remain prerequisites for sensitive meetings.
