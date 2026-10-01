@@ -20,6 +20,7 @@ from app.errors import ApiError
 from app.models.job import ProcessingJob
 from app.models.meeting import Meeting, utc_now
 from app.models.recording import Recording
+from app.models.transcript import TranscriptSegment
 from app.services.media import MAX_DURATION_MS, MAX_FILE_BYTES, inspect_audio
 from app.services.storage import Storage, get_storage
 
@@ -95,7 +96,9 @@ class JobOut(BaseModel):
 
     id: uuid.UUID
     status: str
+    stage: str
     attempts: int
+    cursor: int
     last_error_code: str | None
 
 
@@ -109,6 +112,25 @@ class MeetingDetailResponse(MeetingResponse):
 class UploadResponse(BaseModel):
     meeting_id: uuid.UUID
     status: Literal["queued"]
+
+
+class SegmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    sequence_no: int
+    start_ms: int
+    end_ms: int
+    text: str
+
+
+class TranscriptResponse(BaseModel):
+    segments: list[SegmentOut]
+    full_text: str
+
+
+class RetryResponse(BaseModel):
+    status: str
 
 
 def owned_meeting(db: Session, meeting_id: uuid.UUID, owner_id: uuid.UUID) -> Meeting:
@@ -199,7 +221,7 @@ def get_meeting(
         "meeting": MeetingOut.model_validate(meeting),
         "recording": RecordingOut.model_validate(recording) if recording else None,
         "job": JobOut.model_validate(job) if job else None,
-        "has_transcript": False,
+        "has_transcript": bool(job and job.stage == "summarizing"),
         "has_summary": False,
     }
 
@@ -347,3 +369,54 @@ def upload_recording(
                 failed.upload_key = None
                 failed.updated_at = utc_now()
                 db.commit()
+
+
+@router.get("/{meeting_id}/transcript", response_model=TranscriptResponse)
+def get_transcript(
+    meeting_id: uuid.UUID,
+    owner_id: CurrentUser,
+    db: DbSession,
+) -> dict:
+    owned_meeting(db, meeting_id, owner_id)
+    job = db.scalar(select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id))
+    if job is None or job.stage != "summarizing":
+        raise ApiError(404, "TRANSCRIPT_NOT_READY", "Transcript is not ready")
+    segments = list(
+        db.scalars(
+            select(TranscriptSegment)
+            .where(TranscriptSegment.meeting_id == meeting_id)
+            .order_by(TranscriptSegment.sequence_no)
+        )
+    )
+    return {
+        "segments": [SegmentOut.model_validate(segment) for segment in segments],
+        "full_text": "\n".join(segment.text for segment in segments if segment.text),
+    }
+
+
+@router.post("/{meeting_id}/retry", status_code=202, response_model=RetryResponse)
+def retry_meeting(
+    meeting_id: uuid.UUID,
+    owner_id: CurrentUser,
+    db: DbSession,
+) -> dict:
+    meeting = owned_meeting(db, meeting_id, owner_id)
+    job = db.scalar(
+        select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id).with_for_update()
+    )
+    if job is None or job.status != "failed" or meeting.status != "failed":
+        raise ApiError(409, "INVALID_STATE", "This meeting cannot be retried")
+    if job.last_error_code in {"INVALID_AUDIO", "LIMIT_EXCEEDED", "MISSING_RECORDING"}:
+        raise ApiError(409, "PERMANENT_FAILURE", "This recording cannot be retried")
+    now = utc_now()
+    job.status = "pending"
+    job.attempts = 0
+    job.run_after = now
+    job.lease_until = None
+    job.locked_by = None
+    job.last_error_code = None
+    job.updated_at = now
+    meeting.status = "queued" if job.stage == "transcribing" else "summarizing"
+    meeting.updated_at = now
+    db.commit()
+    return {"status": meeting.status}

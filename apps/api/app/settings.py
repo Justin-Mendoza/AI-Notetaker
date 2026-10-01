@@ -19,6 +19,9 @@ class Settings:
     bucket_name: str = os.getenv("BUCKET_NAME", "meeting-audio")
     bucket_access_key: str = os.getenv("BUCKET_ACCESS_KEY", "")
     bucket_secret_key: str = os.getenv("BUCKET_SECRET_KEY", "")
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    stt_model: str = os.getenv("STT_MODEL", "gpt-4o-transcribe")
+    raw_audio_retention_hours: int = int(os.getenv("RAW_AUDIO_RETENTION_HOURS", "24"))
 
     @property
     def issuer(self) -> str:

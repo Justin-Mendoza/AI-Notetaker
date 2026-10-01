@@ -73,6 +73,10 @@
             "title": "Attempts",
             "type": "integer"
           },
+          "cursor": {
+            "title": "Cursor",
+            "type": "integer"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -89,6 +93,10 @@
             ],
             "title": "Last Error Code"
           },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -97,7 +105,9 @@
         "required": [
           "id",
           "status",
+          "stage",
           "attempts",
+          "cursor",
           "last_error_code"
         ],
         "title": "JobOut",
@@ -313,6 +323,74 @@
           "title"
         ],
         "title": "RenameMeeting",
+        "type": "object"
+      },
+      "RetryResponse": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "RetryResponse",
+        "type": "object"
+      },
+      "SegmentOut": {
+        "properties": {
+          "end_ms": {
+            "title": "End Ms",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "sequence_no": {
+            "title": "Sequence No",
+            "type": "integer"
+          },
+          "start_ms": {
+            "title": "Start Ms",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sequence_no",
+          "start_ms",
+          "end_ms",
+          "text"
+        ],
+        "title": "SegmentOut",
+        "type": "object"
+      },
+      "TranscriptResponse": {
+        "properties": {
+          "full_text": {
+            "title": "Full Text",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentOut"
+            },
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "segments",
+          "full_text"
+        ],
+        "title": "TranscriptResponse",
         "type": "object"
       },
       "UploadResponse": {
@@ -713,6 +791,102 @@
           }
         ],
         "summary": "Upload Recording",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/retry": {
+      "post": {
+        "operationId": "retry_meeting_v1_meetings__meeting_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Retry Meeting",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/transcript": {
+      "get": {
+        "operationId": "get_transcript_v1_meetings__meeting_id__transcript_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Transcript",
         "tags": [
           "meetings"
         ]

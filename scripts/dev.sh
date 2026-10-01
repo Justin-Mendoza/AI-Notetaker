@@ -7,11 +7,13 @@ docker compose up -d
 
 .venv/bin/uvicorn app.main:app --app-dir apps/api --reload --port 8000 &
 api_pid=$!
+.venv/bin/python -m app.worker.main &
+worker_pid=$!
 (cd apps/web && npm run dev) &
 web_pid=$!
 
 cleanup() {
-  kill "$api_pid" "$web_pid" 2>/dev/null || true
+  kill "$api_pid" "$worker_pid" "$web_pid" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
-wait "$api_pid" "$web_pid"
+wait "$api_pid" "$worker_pid" "$web_pid"
