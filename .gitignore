@@ -2,6 +2,8 @@
 .env.local
 .env.*.local
 .venv/
+.venv-whisper-local/
+.data/
 __pycache__/
 .pytest_cache/
 .ruff_cache/

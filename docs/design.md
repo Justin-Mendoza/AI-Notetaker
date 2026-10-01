@@ -1,6 +1,8 @@
 # Meeting Notes App — Codex-Ready Design
 
-Version 1.0 · 2026-09-30 · Owner: solo developer
+Version 1.1 · 2026-10-01 · Owner: solo developer
+
+**Mac-only revision (supersedes the original auth, storage, and hosted-deployment sections below):** The owner confirmed this app runs only on their Mac. Supabase sign-in and hosted deployment are out of scope. The web, API, and PostgreSQL bind to loopback; raw audio uses a private local directory. The API uses one stable local owner ID and checks loopback client, Host, and browser Origin. Whisper Local runs on the same Mac, while the transcript is sent to Kyma when selected for summarization. See the [local startup guide](../README.md) and [provider setup](provider-options.md). The original account and hosted acceptance criteria remain below as historical design context; the current local acceptance criteria are in [acceptance.md](acceptance.md).
 
 This repository follows the design supplied for this project. Implement one milestone at a time. The working contract and release criteria are recorded below so future milestones can be checked against them.
 

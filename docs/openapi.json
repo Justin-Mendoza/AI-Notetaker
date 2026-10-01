@@ -1,6 +1,75 @@
 {
   "components": {
     "schemas": {
+      "ActionItem": {
+        "additionalProperties": false,
+        "properties": {
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
+          "evidence_segment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Segment Ids",
+            "type": "array"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "task": {
+            "minLength": 1,
+            "title": "Task",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task",
+          "owner",
+          "due_date",
+          "evidence_segment_ids"
+        ],
+        "title": "ActionItem",
+        "type": "object"
+      },
+      "Body_upload_recording_v1_meetings__meeting_id__recording_post": {
+        "properties": {
+          "duration_ms": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 5400000.0,
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "duration_ms"
+        ],
+        "title": "Body_upload_recording_v1_meetings__meeting_id__recording_post",
+        "type": "object"
+      },
       "CreateMeeting": {
         "properties": {
           "consent_confirmed": {
@@ -33,6 +102,30 @@
         "title": "CreateMeeting",
         "type": "object"
       },
+      "Decision": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_segment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Segment Ids",
+            "type": "array"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "evidence_segment_ids"
+        ],
+        "title": "Decision",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -46,6 +139,52 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "JobOut": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "cursor": {
+            "title": "Cursor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Code"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "stage",
+          "attempts",
+          "cursor",
+          "last_error_code"
+        ],
+        "title": "JobOut",
+        "type": "object"
+      },
       "MeetingDetailResponse": {
         "properties": {
           "has_summary": {
@@ -57,15 +196,27 @@
             "type": "boolean"
           },
           "job": {
-            "title": "Job",
-            "type": "null"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "meeting": {
             "$ref": "#/components/schemas/MeetingOut"
           },
           "recording": {
-            "title": "Recording",
-            "type": "null"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecordingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -203,6 +354,36 @@
         "title": "MeetingResponse",
         "type": "object"
       },
+      "RecordingOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "uploaded_at": {
+            "format": "date-time",
+            "title": "Uploaded At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "mime_type",
+          "size_bytes",
+          "uploaded_at"
+        ],
+        "title": "RecordingOut",
+        "type": "object"
+      },
       "RenameMeeting": {
         "properties": {
           "title": {
@@ -214,6 +395,153 @@
           "title"
         ],
         "title": "RenameMeeting",
+        "type": "object"
+      },
+      "RetryResponse": {
+        "properties": {
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "RetryResponse",
+        "type": "object"
+      },
+      "SegmentOut": {
+        "properties": {
+          "end_ms": {
+            "title": "End Ms",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "sequence_no": {
+            "title": "Sequence No",
+            "type": "integer"
+          },
+          "start_ms": {
+            "title": "Start Ms",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sequence_no",
+          "start_ms",
+          "end_ms",
+          "text"
+        ],
+        "title": "SegmentOut",
+        "type": "object"
+      },
+      "SummaryContent": {
+        "additionalProperties": false,
+        "properties": {
+          "action_items": {
+            "items": {
+              "$ref": "#/components/schemas/ActionItem"
+            },
+            "title": "Action Items",
+            "type": "array"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/Decision"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "key_points": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Key Points",
+            "type": "array"
+          },
+          "open_questions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Open Questions",
+            "type": "array"
+          },
+          "overview": {
+            "minLength": 1,
+            "title": "Overview",
+            "type": "string"
+          }
+        },
+        "required": [
+          "overview",
+          "key_points",
+          "decisions",
+          "action_items",
+          "open_questions"
+        ],
+        "title": "SummaryContent",
+        "type": "object"
+      },
+      "SummaryResponse": {
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/SummaryContent"
+          }
+        },
+        "required": [
+          "summary"
+        ],
+        "title": "SummaryResponse",
+        "type": "object"
+      },
+      "TranscriptResponse": {
+        "properties": {
+          "full_text": {
+            "title": "Full Text",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentOut"
+            },
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "segments",
+          "full_text"
+        ],
+        "title": "TranscriptResponse",
+        "type": "object"
+      },
+      "UploadResponse": {
+        "properties": {
+          "meeting_id": {
+            "format": "uuid",
+            "title": "Meeting Id",
+            "type": "string"
+          },
+          "status": {
+            "const": "queued",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "meeting_id",
+          "status"
+        ],
+        "title": "UploadResponse",
         "type": "object"
       },
       "ValidationError": {
@@ -255,12 +583,6 @@
         ],
         "title": "ValidationError",
         "type": "object"
-      }
-    },
-    "securitySchemes": {
-      "HTTPBearer": {
-        "scheme": "bearer",
-        "type": "http"
       }
     }
   },
@@ -372,11 +694,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "List Meetings",
         "tags": [
           "meetings"
@@ -416,11 +733,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Create Meeting",
         "tags": [
           "meetings"
@@ -428,6 +740,40 @@
       }
     },
     "/v1/meetings/{meeting_id}": {
+      "delete": {
+        "operationId": "delete_meeting_v1_meetings__meeting_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Meeting",
+        "tags": [
+          "meetings"
+        ]
+      },
       "get": {
         "operationId": "get_meeting_v1_meetings__meeting_id__get",
         "parameters": [
@@ -464,11 +810,6 @@
             "description": "Validation Error"
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
         "summary": "Get Meeting",
         "tags": [
           "meetings"
@@ -520,12 +861,199 @@
             "description": "Validation Error"
           }
         },
-        "security": [
+        "summary": "Rename Meeting",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/recording": {
+      "post": {
+        "operationId": "upload_recording_v1_meetings__meeting_id__recording_post",
+        "parameters": [
           {
-            "HTTPBearer": []
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
           }
         ],
-        "summary": "Rename Meeting",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_recording_v1_meetings__meeting_id__recording_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Recording",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/retry": {
+      "post": {
+        "operationId": "retry_meeting_v1_meetings__meeting_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Meeting",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/summary": {
+      "get": {
+        "operationId": "get_summary_v1_meetings__meeting_id__summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Summary",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/transcript": {
+      "get": {
+        "operationId": "get_transcript_v1_meetings__meeting_id__transcript_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Transcript",
         "tags": [
           "meetings"
         ]

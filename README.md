@@ -1,25 +1,32 @@
 # Meeting Notes
 
-Private meeting notes app. This repository currently implements **Milestone 1** of [the design](docs/design.md): the Next.js shell, FastAPI meeting foundation, Supabase authentication, PostgreSQL migration, and local services. Recording, uploads, transcription, and summaries are later milestones.
+Private, single-owner meeting notes app for one Mac. The app records microphone audio after explicit consent, uploads it to private local storage, processes it in a separate worker, and saves a transcript and reviewable draft notes.
+
+The supplied `.env.example` selects [Whisper Local for transcription and Qwen through Kyma for summaries](docs/provider-options.md). Model and provider settings remain configurable. Audio stays on this Mac for transcription; the transcript goes to Kyma for summaries.
 
 ## Requirements
 
-- Node.js 20.19 or newer, npm, Python 3.11–3.14, Docker with the daemon running.
-- A Supabase project using an **asymmetric JWT signing key**. This app verifies access tokens through the project's JWKS. Email sign-in must be enabled in Supabase Auth. Legacy HS256 projects need a different verification path and are not supported by this foundation.
-- Create or invite the intended account in Supabase before signing in. The web app requests codes only for existing users; configure Supabase to prevent public signup for a private deployment.
+- Node.js 20.19 or newer, npm, Python 3.11–3.14, Docker with the daemon running, and FFmpeg (`ffmpeg` and `ffprobe`) installed for the API and worker.
+- Whisper Local installed on this Mac using [the provider instructions](docs/provider-options.md), and a Kyma API key for summaries.
 
 ## Local startup
 
-1. Copy `.env.example` to `.env` and set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and a fresh local database password in both `.env` and `docker-compose.yml`. Never put server credentials in `apps/web/.env.local`.
-2. Run `docker compose up -d`. MinIO is at `http://localhost:9001`; create the private `meeting-audio` bucket before the upload milestone. The bucket is not used yet.
+1. Copy `.env.example` to `.env`. Set matching `POSTGRES_PASSWORD`/`DATABASE_URL` values and `KYMA_API_KEY`. Keep provider credentials out of `apps/web/.env.local`. Recordings are stored under the ignored `.data/recordings` directory with owner-only file permissions; set `LOCAL_RECORDING_DIR` to an absolute path if you want them elsewhere.
+2. Run `docker compose up -d` to start PostgreSQL on loopback.
 3. Run `python3 -m venv .venv && .venv/bin/pip install -e 'apps/api[dev]'`.
 4. Run `.venv/bin/alembic -c apps/api/alembic.ini upgrade head`.
-5. In one terminal run `.venv/bin/uvicorn app.main:app --app-dir apps/api --reload --port 8000`.
-6. Run `cd apps/web && npm install && cp .env.local.example .env.local && npm run dev`. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` to the same Supabase project. Open `http://localhost:3000`.
+5. Start Whisper Local with `./scripts/start-whisper-local.sh`. In another terminal run `.venv/bin/uvicorn app.main:app --app-dir apps/api --reload --host 127.0.0.1 --port 8000`. In another run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.main` with the same `.env`.
+6. Run `cd apps/web && npm install && npm run dev -- --hostname 127.0.0.1`. Open `http://localhost:3000` on this Mac.
 
-Once dependencies and env files are set, `bash scripts/dev.sh` starts Compose, applies migrations, and launches the API and web dev servers together.
+Once dependencies and env files are set, `bash scripts/dev.sh` starts PostgreSQL, applies migrations, starts Whisper Local if needed, and launches the API, worker, and web app together. It checks that `KYMA_API_KEY` is set before starting.
 
-The frontend signs in with an emailed one-time code or link. `/healthz` checks the API process; `/readyz` checks database connectivity. FastAPI publishes OpenAPI at `/openapi.json` and an interactive API page at `/docs`. Every `/v1` route needs `Authorization: Bearer <Supabase access token>`.
+The worker runs cleanup at startup and hourly to purge expired raw audio, remove deleted meetings and abandoned drafts, and sweep old recording files. You can also run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.cleanup` manually. Local operation and smoke-test steps are in [deploy/README.md](deploy/README.md).
+
+From the library, select **New meeting**, confirm the consent reminder, and start recording. The browser uploads once after Stop and keeps the captured file available for retry while the tab stays open. The worker transcribes approximate ten-minute chunks and saves the transcript, then produces a schema-validated summary. Both appear on the detail page as reviewable drafts. If summarization fails, the transcript stays available and retry resumes from it.
+
+For non-sensitive local audio, run `bash scripts/generate_fixture.sh 120 /private/tmp/meeting-short.mp3`. Use `3600` for a 60-minute file above the speech API's per-file limit. The worker submits only compressed chunks below 20 MB.
+
+`/healthz` checks the API process; `/readyz` checks database connectivity. FastAPI publishes OpenAPI at `/openapi.json` and an interactive API page at `/docs`. `/v1` routes accept only loopback clients using `localhost` or `127.0.0.1` as the API host. Browser requests may come from `localhost`, `127.0.0.1`, or `[::1]` on the port set by `ALLOWED_WEB_ORIGIN`; write requests require one of those `Origin` headers. Run the web app, API, and PostgreSQL bound to loopback. Anyone with access to the local OS account or local processes may be able to access the app; this is a personal Mac setup, not a network service.
 
 After changing API response schemas, run `.venv/bin/python scripts/export_openapi.py` and then `cd apps/web && npm run api:types` to refresh the checked-in frontend types.
 
@@ -33,11 +40,11 @@ After changing API response schemas, run `.venv/bin/python scripts/export_openap
 cd apps/web && npm run lint && npm run typecheck && npm run build
 ```
 
-The API tests use temporary SQLite databases and locally generated asymmetric test tokens. Run the migration against PostgreSQL from Compose as an additional integration check.
+The API tests use temporary SQLite databases and test local-only access rules. CI runs the migration against PostgreSQL. A real-provider smoke test still needs local storage, FFmpeg, Whisper Local, and a Kyma key.
 
 ## Layout
 
-- `apps/web`: Next.js App Router and Supabase sign-in shell.
-- `apps/api/app`: FastAPI routes, auth, database, and models.
+- `apps/web`: Next.js App Router and recording interface.
+- `apps/api/app`: FastAPI routes, local access control, database, and models.
 - `apps/api/alembic`: database migrations.
 - `docs`: product design and API notes.
