@@ -2,6 +2,8 @@
 
 Private meeting notes app implementing the MVP in [the design](docs/design.md). The app records microphone audio after explicit consent, uploads it to private storage, processes it in a separate worker, and saves a transcript and reviewable draft notes.
 
+The default worker uses OpenAI for transcription and summaries. It can instead use [Whisper Local on the worker's Mac and Qwen through Kyma](docs/provider-options.md).
+
 ## Requirements
 
 - Node.js 20.19 or newer, npm, Python 3.11–3.14, Docker with the daemon running, and FFmpeg (`ffmpeg` and `ffprobe`) installed for the API and worker.
