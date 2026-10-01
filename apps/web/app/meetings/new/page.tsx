@@ -1,10 +1,9 @@
 "use client";
 
-import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { apiUrl, makeClient } from "@/lib/supabase";
+import { apiUrl } from "@/lib/api";
 
 const MAX_DURATION_MS = 90 * 60 * 1000;
 const MAX_BYTES = 100_000_000;
@@ -23,8 +22,6 @@ function extension(mime: string) {
 
 export default function NewMeeting() {
   const router = useRouter();
-  const [client] = useState(makeClient);
-  const [session, setSession] = useState<Session | null>(null);
   const [title, setTitle] = useState("");
   const [consent, setConsent] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -42,13 +39,6 @@ export default function NewMeeting() {
   const meetingIdRef = useRef<string | null>(null);
   const uploadKeyRef = useRef<string | null>(null);
   const interruptedRef = useRef(false);
-
-  useEffect(() => {
-    if (!client) return;
-    client.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = client.auth.onAuthStateChange((_event, next) => setSession(next));
-    return () => data.subscription.unsubscribe();
-  }, [client]);
 
   useEffect(() => {
     if (phase !== "recording" && phase !== "finishing" && phase !== "uploading" && !blob) return;
@@ -95,13 +85,7 @@ export default function NewMeeting() {
   async function uploadRecording(recording: Blob) {
     const meetingId = meetingIdRef.current;
     const key = uploadKeyRef.current;
-    if (!meetingId || !key || !client) return;
-    const { data } = await client.auth.getSession();
-    if (!data.session) {
-      setPhase("error");
-      setMessage("Your sign-in expired. Sign in again, then retry while this tab stays open.");
-      return;
-    }
+    if (!meetingId || !key) return;
     setPhase("uploading");
     setUploadPercent(0);
     setMessage("Keep this tab open until upload finishes.");
@@ -110,7 +94,6 @@ export default function NewMeeting() {
     form.append("duration_ms", String(Math.min(MAX_DURATION_MS, Math.max(1, Date.now() - startedAtRef.current))));
     const request = new XMLHttpRequest();
     request.open("POST", `${apiUrl}/v1/meetings/${meetingId}/recording`);
-    request.setRequestHeader("Authorization", `Bearer ${data.session.access_token}`);
     request.setRequestHeader("Idempotency-Key", key);
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) setUploadPercent(Math.round(event.loaded / event.total * 100));
@@ -133,7 +116,7 @@ export default function NewMeeting() {
   }
 
   async function startRecording() {
-    if (!client || !session || !consent || phase !== "idle") return;
+    if (!consent || phase !== "idle") return;
     setMessage("");
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setMessage("This browser cannot record audio here. Use a current desktop browser over HTTPS or localhost.");
@@ -149,11 +132,9 @@ export default function NewMeeting() {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      const { data } = await client.auth.getSession();
-      if (!data.session) throw new Error("Sign in again before recording.");
       const response = await fetch(`${apiUrl}/v1/meetings`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${data.session.access_token}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title.trim() || undefined, consent_confirmed: true, consent_policy_version: "v1" }),
       });
       if (!response.ok) throw new Error("Could not create the meeting. Check your connection and try again.");
@@ -239,17 +220,15 @@ export default function NewMeeting() {
       }}>← Meeting library</Link>
       <h1 className="mt-8 text-4xl font-semibold">New meeting</h1>
       <p className="mt-3 text-slate-700">Microphone audio only. Maximum 90 minutes or 100 MB. This tab must remain open until upload completes; a browser crash before upload may lose the recording.</p>
-      {!session ? <p className="mt-8 rounded bg-white p-5">Sign in from the library before recording.</p> : (
         <div className="mt-8 rounded-2xl bg-white p-7 shadow-sm">
           <label className="block font-medium" htmlFor="meeting-title">Meeting title</label>
           <input id="meeting-title" className="mt-2 w-full rounded border border-slate-400 p-3" maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} disabled={phase !== "idle"} placeholder="Untitled meeting" />
           <label className="mt-6 flex items-start gap-3 leading-relaxed"><input type="checkbox" className="mt-1" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={phase !== "idle"} /><span>I have informed participants and may record this meeting. Recording rules vary by place and context.</span></label>
-          {phase === "recording" ? <div className="mt-8"><p className="text-xl font-semibold"><span aria-hidden="true" className="mr-2 inline-block h-3 w-3 rounded-full bg-red-600" />Recording · {clock}</p><p className="mt-2 text-sm text-slate-600">{(recordedBytes / 1_000_000).toFixed(1)} MB captured</p><button className="mt-5 rounded bg-red-700 px-6 py-3 font-semibold text-white" onClick={stopRecording}>Stop recording</button></div> : phase === "idle" ? <button className="mt-8 rounded bg-teal-800 px-6 py-3 font-semibold text-white disabled:opacity-50" disabled={!consent || !client} onClick={() => void startRecording()}>Start recording</button> : <p className="mt-8 font-medium">{phase === "starting" ? "Requesting microphone…" : phase === "finishing" ? "Finishing recording…" : phase === "uploading" ? `Uploading… ${uploadPercent}%` : phase === "queued" ? "Upload complete." : "Recording needs attention."}</p>}
+          {phase === "recording" ? <div className="mt-8"><p className="text-xl font-semibold"><span aria-hidden="true" className="mr-2 inline-block h-3 w-3 rounded-full bg-red-600" />Recording · {clock}</p><p className="mt-2 text-sm text-slate-600">{(recordedBytes / 1_000_000).toFixed(1)} MB captured</p><button className="mt-5 rounded bg-red-700 px-6 py-3 font-semibold text-white" onClick={stopRecording}>Stop recording</button></div> : phase === "idle" ? <button className="mt-8 rounded bg-teal-800 px-6 py-3 font-semibold text-white disabled:opacity-50" disabled={!consent} onClick={() => void startRecording()}>Start recording</button> : <p className="mt-8 font-medium">{phase === "starting" ? "Requesting microphone…" : phase === "finishing" ? "Finishing recording…" : phase === "uploading" ? `Uploading… ${uploadPercent}%` : phase === "queued" ? "Upload complete." : "Recording needs attention."}</p>}
           {phase === "uploading" && <progress className="mt-4 w-full" max={100} value={uploadPercent} aria-label="Upload progress" />}
           {phase === "error" && blob && <div className="mt-5 flex flex-wrap gap-3"><button className="rounded border border-teal-800 px-4 py-2 text-teal-800" onClick={downloadLocal}>Download captured audio</button>{blob.size > 0 && blob.size <= MAX_BYTES && <button className="rounded bg-teal-800 px-4 py-2 text-white" onClick={() => void uploadRecording(blob)}>Retry upload</button>}</div>}
           {message && <p className="mt-5 text-sm text-slate-700" role="status" aria-live="polite">{message}</p>}
         </div>
-      )}
     </main>
   );
 }

@@ -1,19 +1,15 @@
-# MVP acceptance audit
+# Local Mac acceptance audit
 
-Audit date: 2026-09-30. The review covers the MVP in [design.md](design.md), excluding Phase 2 and Phase 3. CI runs Python lint, formatting, API tests, PostgreSQL migrations, and web lint, type checking, and build. The 60-minute fixture test uses real FFmpeg and fake STT/LLM providers in CI.
+Updated 2026-10-01. The original [design](design.md) described hosted accounts; this version is for one Mac. CI covers Python lint, formatting, API tests, PostgreSQL migrations, and web lint, type checking, and build. The 60-minute fixture test runs real FFmpeg with fake STT/LLM providers.
 
-| Release criterion | Evidence | Status |
+| Criterion | Evidence | Status |
 | --- | --- | --- |
-| Sign in, consent, record, upload, ready transcript and draft notes | Browser and API flow implemented; API worker tests cover transcription to ready. Real Supabase and microphone flow needs hosted smoke test. | Hosted check required |
-| 60-minute recording, per-file STT limit, chunk order | CI generates a 60-minute MP3 above 25 MB, runs real FFmpeg splitting through worker with fake providers, and checks six ordered segments and ready status. | Automated check |
-| Second account denied list, fetch, retry, delete, and private object access | Owner isolation tests cover API reads and mutations; object keys are not returned. Direct bucket access needs a deployed private-bucket check. | Hosted bucket check required |
-| Refresh while processing | Status, transcript, and summary are persisted and fetched through polling endpoints; deployed browser refresh needs smoke test. | Hosted check required |
-| STT/LLM 429 and 5xx backoff, terminal failure | Provider adapters map transient errors; worker retry and failure state tests cover idempotence and saved segments. Real provider responses need hosted fault/smoke validation. | Automated check with hosted provider prerequisite |
-| Summary failure keeps transcript; retry avoids STT | Transcript endpoint uses completed transcription stage; worker summary retry test checks no new STT calls. | Automated check |
-| Invalid media, mic errors, size/duration, interrupted upload, worker restart | API validation and lease-reclaim tests pass; browser has actionable errors and in-memory retry. Manual browser/device cases need smoke test. | Automated check with hosted browser prerequisite |
-| Delete denies reads and removes rows/audio; retention purges | API delete and idempotent cleanup tests cover immediate 404, cascading row removal, and object delete calls. Managed bucket verification and scheduled cleanup need hosted smoke test. | Automated check with hosted storage prerequisite |
-| CI gates and real-provider smoke test | CI workflow covers code checks, PostgreSQL migration, and fake-provider integration. [Deployment guide](../deploy/README.md) gives exact hosted smoke steps. | Hosted check required |
+| Consent, record, upload, transcript and draft notes | Browser flow and API worker tests are implemented. A short real-provider browser recording is still needed. | Local smoke test required |
+| 60-minute recording and ordered chunks | CI checks six ordered segments from a 60-minute fixture with real FFmpeg. | Automated check |
+| Local-only access | API tests reject remote clients, unexpected Host, and cross-site writes; Compose binds data ports to loopback. | Automated check; inspect local ports |
+| Refresh during processing | Status, transcript, and summary are persisted; browser polls the API. | Local smoke test required |
+| Provider retry and failed-summary recovery | Worker tests cover backoff, saved segments, and summary retry without retranscription. | Automated check; real-provider smoke needed |
+| Invalid media and recording failures | API validation, lease recovery, and browser error handling are implemented. | Automated check with manual browser cases |
+| Delete and retention cleanup | Tests cover immediate unreadability, cascading row removal, and storage delete calls. | Automated check; local MinIO verification needed |
 
-## Deployment prerequisites
-
-Supply a Supabase project with asymmetric JWT signing and two invited accounts; managed PostgreSQL; a private S3-compatible bucket; OpenAI credentials and approved data handling; HTTPS web/API domains; a scheduled cleanup process; backup retention and budget alerts. Run Alembic before service rollout. Complete the hosted smoke test in [deploy/README.md](../deploy/README.md) before calling the MVP release accepted.
+Complete the [local smoke test](../deploy/README.md) before treating the app as ready for personal meetings. Kyma credentials and a review of its transcript handling remain prerequisites for sensitive meetings.
