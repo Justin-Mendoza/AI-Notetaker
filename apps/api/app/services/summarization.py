@@ -1,5 +1,6 @@
 import json
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
@@ -155,8 +156,11 @@ class OpenAISummarizer:
             raise SummaryError("PROVIDER_UNAVAILABLE", transient=False)
         self.model = settings.summary_model
         self.client = OpenAI(api_key=settings.openai_api_key, timeout=180, max_retries=0)
+        self.check_active: Callable[[], None] | None = None
 
     def _request(self, body: str, allowed_ids: set[uuid.UUID], instructions: str) -> SummaryContent:
+        if check_active := getattr(self, "check_active", None):
+            check_active()
         try:
             response = self.client.responses.create(
                 model=self.model,

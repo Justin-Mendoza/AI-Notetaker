@@ -1,3 +1,5 @@
+import base64
+import json
 import uuid
 
 
@@ -49,3 +51,19 @@ def test_creation_rate_limit_is_per_owner(api_client):
     assert limited.json()["error"]["code"] == "RATE_LIMITED"
     identity["owner"] = uuid.uuid4()
     assert client.post("/v1/meetings", json=body).status_code == 201
+
+
+def test_cursor_pagination_and_invalid_timezone(api_client):
+    client, _ = api_client
+    body = {"consent_confirmed": True, "consent_policy_version": "v1"}
+    ids = [client.post("/v1/meetings", json=body).json()["meeting"]["id"] for _ in range(3)]
+    first = client.get("/v1/meetings", params={"limit": 2}).json()
+    assert [item["id"] for item in first["items"]] == ids[::-1][:2]
+    second = client.get("/v1/meetings", params={"limit": 2, "cursor": first["next_cursor"]}).json()
+    assert [item["id"] for item in second["items"]] == [ids[0]]
+    naive = base64.urlsafe_b64encode(
+        json.dumps(["2026-09-30T12:00:00", str(uuid.uuid4())]).encode()
+    ).decode()
+    response = client.get("/v1/meetings", params={"cursor": naive})
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_CURSOR"

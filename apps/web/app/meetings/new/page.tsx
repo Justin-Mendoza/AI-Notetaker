@@ -36,6 +36,7 @@ export default function NewMeeting() {
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recordedBytesRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedAtRef = useRef(0);
   const meetingIdRef = useRef<string | null>(null);
@@ -77,6 +78,7 @@ export default function NewMeeting() {
 
   useEffect(() => () => {
     if (timerRef.current) clearInterval(timerRef.current);
+    interruptedRef.current = true;
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
     stopTracks(streamRef.current);
   }, []);
@@ -159,16 +161,25 @@ export default function NewMeeting() {
       meetingIdRef.current = created.meeting.id;
       uploadKeyRef.current = crypto.randomUUID();
       chunksRef.current = [];
+      recordedBytesRef.current = 0;
       interruptedRef.current = false;
       setRecordedBytes(0);
       const recorder = new MediaRecorder(stream, { mimeType: mime });
       recorderRef.current = recorder;
+      stream.getAudioTracks().forEach((track) => {
+        track.onended = () => {
+          if (recorder.state !== "recording") return;
+          interruptedRef.current = true;
+          setMessage("The microphone disconnected. Download the captured audio if available.");
+          stopRecording();
+        };
+      });
       recorder.ondataavailable = (event) => {
         if (event.data.size === 0) return;
         chunksRef.current.push(event.data);
-        const bytes = chunksRef.current.reduce((sum, chunk) => sum + chunk.size, 0);
-        setRecordedBytes(bytes);
-        if (bytes > MAX_BYTES && recorder.state === "recording") {
+        recordedBytesRef.current += event.data.size;
+        setRecordedBytes(recordedBytesRef.current);
+        if (recordedBytesRef.current > MAX_BYTES && recorder.state === "recording") {
           interruptedRef.current = true;
           setMessage("The recording passed 100 MB. It stopped; download a local copy.");
           stopRecording();

@@ -84,6 +84,16 @@ def claim_job(session_factory: SessionFactory, worker_id: str) -> uuid.UUID | No
             job.lease_until = None
             db.commit()
             return None
+        if job.status == "running" and job.attempts >= job.max_attempts:
+            job.status = "failed"
+            job.last_error_code = "WORKER_TIMEOUT"
+            job.locked_by = None
+            job.lease_until = None
+            job.updated_at = now
+            meeting.status = "failed"
+            meeting.updated_at = now
+            db.commit()
+            return None
         job.status = "running"
         job.attempts += 1
         job.locked_by = worker_id
@@ -371,9 +381,15 @@ def process_job(
             raise ProcessingFailure("UNSUPPORTED_STAGE", transient=False)
 
     if summary_input is not None:
-        with session_factory() as db:
-            ensure_active(db, job_id, worker_id)
+
+        def check_active() -> None:
+            with session_factory() as db:
+                ensure_active(db, job_id, worker_id)
+
+        check_active()
         summarizer = summarizer or OpenAISummarizer()
+        if isinstance(summarizer, OpenAISummarizer):
+            summarizer.check_active = check_active
         try:
             result = summarizer.summarize(summary_input)
         except SummaryError as exc:
@@ -453,6 +469,8 @@ def run_once(
         return False
     with session_factory() as db:
         claimed = db.get(ProcessingJob, job_id)
+        if claimed is None:
+            return False
         details = {
             "job_id": job_id,
             "meeting_id": claimed.meeting_id,
