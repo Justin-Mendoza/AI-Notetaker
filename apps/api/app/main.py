@@ -9,6 +9,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import func, select, text
 
 from app.api.meetings import router as meetings_router
+from app.auth.local import local_web_origins
 from app.db.session import SessionLocal, engine
 from app.errors import ApiError, api_error_handler, error_response, validation_error_handler
 from app.models.job import ProcessingJob
@@ -103,7 +104,7 @@ def metrics(authorization: str | None = Header(default=None)) -> PlainTextRespon
 app.include_router(meetings_router)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.allowed_web_origin],
+    allow_origins=sorted(local_web_origins()),
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
 )

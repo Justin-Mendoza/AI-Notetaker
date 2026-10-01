@@ -25,6 +25,28 @@ def test_local_browser_uses_single_owner(api_client):
         assert len(client.get("/v1/meetings").json()["items"]) == 1
 
 
+def test_both_local_browser_names_pass_preflight_and_write(api_client):
+    app.dependency_overrides.pop(get_current_user)
+    with local_client() as client:
+        for origin in ("http://localhost:3000", "http://127.0.0.1:3000"):
+            preflight = client.options(
+                "/v1/meetings",
+                headers={
+                    "Origin": origin,
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "content-type",
+                },
+            )
+            assert preflight.status_code == 200
+            assert preflight.headers["access-control-allow-origin"] == origin
+            created = client.post(
+                "/v1/meetings",
+                json={"consent_confirmed": True, "consent_policy_version": "v1"},
+                headers={"Origin": origin},
+            )
+            assert created.status_code == 201
+
+
 def test_rejects_network_client(api_client):
     app.dependency_overrides.pop(get_current_user)
     with TestClient(app, base_url="http://127.0.0.1:8000", client=("192.0.2.10", 50000)) as client:
