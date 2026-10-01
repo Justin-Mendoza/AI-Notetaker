@@ -4,7 +4,16 @@ The default worker uses OpenAI `gpt-4o-transcribe` and `gpt-4o-mini`. For the pe
 
 ## Mac worker with Whisper Local and Kyma
 
-1. Install Whisper Local following its README (`pip install whisper-local` in a Python 3.11–3.13 environment). Let it download your selected Whisper model. In a separate terminal run `whisper-local --serve`; its API listens on `http://127.0.0.1:7777` by default. Its `/health` endpoint should respond before starting this app's worker.
+1. On the Mac running the worker, install Python 3.11–3.13 and FFmpeg, then install Whisper Local in a separate environment. `soundfile` lets its API decode the MP3 chunks sent by this app:
+
+   ```bash
+   brew install ffmpeg
+   python3.12 -m venv .venv-whisper-local
+   .venv-whisper-local/bin/python -m pip install whisper-local==0.21.0 soundfile==0.14.0
+   ./scripts/start-whisper-local.sh
+   ```
+
+   The first server start downloads the selected Whisper model into the user's Hugging Face cache. Keep that terminal open. The server listens only on `127.0.0.1:7777`; check `http://127.0.0.1:7777/health` before starting the worker.
 2. Run this app's API and worker on the **same Mac**. Set these values in the root `.env`:
 
    ```dotenv
