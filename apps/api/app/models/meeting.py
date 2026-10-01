@@ -33,6 +33,7 @@ class Meeting(Base):
     duration_ms: Mapped[int | None] = mapped_column(BigInteger)
     consent_confirmed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consent_policy_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    upload_key: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
