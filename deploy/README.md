@@ -2,7 +2,7 @@
 
 This version is for one Mac. Do not deploy its API or web app to a public host: there is no account sign-in. The API checks loopback clients, local Host values, and the configured browser Origin; PostgreSQL is bound to loopback by Compose. Raw recordings are private files under `.data/recordings` by default. Follow the [startup guide](../README.md).
 
-Run `alembic -c apps/api/alembic.ini upgrade head` before starting the API and worker. Run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.cleanup` hourly to delete expired raw audio, removed meetings, abandoned drafts, and orphaned objects. A macOS launch agent or other local scheduler can invoke it. `/internal/metrics` is available only when `METRICS_TOKEN` is set; keep that token out of the web app.
+Run `alembic -c apps/api/alembic.ini upgrade head` before starting the API and worker. The worker runs cleanup at startup and hourly to delete expired raw audio, removed meetings, abandoned drafts, and orphaned files. The same cleanup command can be run manually. `/internal/metrics` is available only when `METRICS_TOKEN` is set; keep that token out of the web app.
 
 ## Local smoke test
 

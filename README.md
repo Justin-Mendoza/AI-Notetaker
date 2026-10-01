@@ -20,7 +20,7 @@ The supplied `.env.example` selects [Whisper Local for transcription and Qwen th
 
 Once dependencies and env files are set, `bash scripts/dev.sh` starts PostgreSQL, applies migrations, starts Whisper Local if needed, and launches the API, worker, and web app together. It checks that `KYMA_API_KEY` is set before starting.
 
-Run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.cleanup` hourly to purge expired raw audio, remove deleted meetings and abandoned drafts, and sweep old recording files. Local operation and smoke-test steps are in [deploy/README.md](deploy/README.md).
+The worker runs cleanup at startup and hourly to purge expired raw audio, remove deleted meetings and abandoned drafts, and sweep old recording files. You can also run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.cleanup` manually. Local operation and smoke-test steps are in [deploy/README.md](deploy/README.md).
 
 From the library, select **New meeting**, confirm the consent reminder, and start recording. The browser uploads once after Stop and keeps the captured file available for retry while the tab stays open. The worker transcribes approximate ten-minute chunks and saves the transcript, then produces a schema-validated summary. Both appear on the detail page as reviewable drafts. If summarization fails, the transcript stays available and retry resumes from it.
 
