@@ -30,7 +30,7 @@ The default worker uses OpenAI `gpt-4o-transcribe` and `gpt-4o-mini`. For the pe
 
 The worker still downloads meeting audio from this app's private bucket to temporary disk. Whisper Local transcribes it on that Mac; the audio is not sent to a transcription API. **The transcript is sent to Kyma** for summary generation. Kyma is an API aggregator, so review its handling of meeting text before using sensitive recordings. Keep the Whisper Local server bound to loopback. It has no API authentication, and this app intentionally rejects a non-loopback URL.
 
-Whisper Local is a desktop application for Windows and macOS. A hosted worker container cannot reach a Whisper Local server on your Mac by using `127.0.0.1`; that address would point inside the container. For a hosted worker, use the OpenAI STT provider until a private, authenticated local-worker connection is designed. Do not expose Whisper Local's unauthenticated server to the internet.
+This version runs the worker and Whisper Local on the same Mac. A hosted worker container cannot reach the Mac's Whisper Local server using `127.0.0.1`, and the app's API has no hosted authentication. Do not expose either local service to the network.
 
 ## Provider configuration
 

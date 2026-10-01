@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.auth.jwt import get_current_user
+from app.auth.local import get_current_user
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app

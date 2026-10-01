@@ -1,11 +1,10 @@
 "use client";
 
-import type { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { components } from "@/lib/api-types";
-import { apiUrl, makeClient } from "@/lib/supabase";
+import { apiUrl } from "@/lib/api";
 
 type Detail = components["schemas"]["MeetingDetailResponse"];
 type Transcript = components["schemas"]["TranscriptResponse"];
@@ -14,8 +13,6 @@ type Summary = components["schemas"]["SummaryContent"];
 export default function MeetingDetail() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [client] = useState(makeClient);
-  const [session, setSession] = useState<Session | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -23,10 +20,10 @@ export default function MeetingDetail() {
   const [message, setMessage] = useState("");
   const editingRef = useRef(false);
 
-  const load = useCallback(async (accessToken: string) => {
+  const load = useCallback(async () => {
     try {
       const response = await fetch(`${apiUrl}/v1/meetings/${id}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store",
+        cache: "no-store",
       });
       if (response.status === 404) throw new Error("Meeting not found.");
       if (!response.ok) throw new Error("Could not load this meeting. Try again.");
@@ -34,13 +31,13 @@ export default function MeetingDetail() {
       setDetail(next);
       if (next.has_transcript) {
         const transcriptResponse = await fetch(`${apiUrl}/v1/meetings/${id}/transcript`, {
-          headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store",
+          cache: "no-store",
         });
         if (transcriptResponse.ok) setTranscript(await transcriptResponse.json());
       }
       if (next.has_summary) {
         const summaryResponse = await fetch(`${apiUrl}/v1/meetings/${id}/summary`, {
-          headers: { Authorization: `Bearer ${accessToken}` }, cache: "no-store",
+          cache: "no-store",
         });
         if (summaryResponse.ok) {
           const payload = await summaryResponse.json();
@@ -55,44 +52,34 @@ export default function MeetingDetail() {
   }, [id]);
 
   useEffect(() => {
-    if (!client) return;
-    client.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session) void load(data.session.access_token);
-    });
-    const { data } = client.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
-      if (next) void load(next.access_token);
-      else { setDetail(null); setTranscript(null); setSummary(null); }
-    });
-    return () => data.subscription.unsubscribe();
-  }, [client, load]);
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   useEffect(() => {
-    if (!session || !detail || !["uploading", "queued", "transcribing", "summarizing"].includes(detail.meeting.status)) return;
-    const timer = window.setInterval(() => void load(session.access_token), 4000);
+    if (!detail || !["uploading", "queued", "transcribing", "summarizing"].includes(detail.meeting.status)) return;
+    const timer = window.setInterval(() => void load(), 4000);
     return () => window.clearInterval(timer);
-  }, [session, detail, load]);
+  }, [detail, load]);
 
   async function saveTitle(event: React.FormEvent) {
     event.preventDefault();
-    if (!session || !title.trim()) return;
+    if (!title.trim()) return;
     const response = await fetch(`${apiUrl}/v1/meetings/${id}`, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title }),
     });
     if (!response.ok) { setMessage("Could not save the title. Try again."); return; }
     editingRef.current = false;
-    await load(session.access_token);
+    await load();
     setMessage("Title saved.");
   }
 
   async function retry() {
-    if (!session) return;
     try {
       const response = await fetch(`${apiUrl}/v1/meetings/${id}/retry`, {
-        method: "POST", headers: { Authorization: `Bearer ${session.access_token}` },
+        method: "POST",
       });
       if (!response.ok) {
         const payload = await response.json();
@@ -100,17 +87,17 @@ export default function MeetingDetail() {
         return;
       }
       setMessage("Processing queued again.");
-      await load(session.access_token);
+      await load();
     } catch {
       setMessage("Could not retry processing. Check your connection and try again.");
     }
   }
 
   async function deleteMeeting() {
-    if (!session || !window.confirm("Permanently delete this meeting, its transcript, and draft notes?")) return;
+    if (!window.confirm("Permanently delete this meeting, its transcript, and draft notes?")) return;
     try {
       const response = await fetch(`${apiUrl}/v1/meetings/${id}`, {
-        method: "DELETE", headers: { Authorization: `Bearer ${session.access_token}` },
+        method: "DELETE",
       });
       if (response.status !== 204) throw new Error();
       router.push("/");
@@ -153,7 +140,7 @@ export default function MeetingDetail() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
       <Link className="text-teal-800 underline" href="/">← Meeting library</Link>
-      {!session ? <p className="mt-8">Sign in from the library to view this meeting.</p> : !detail ? <p className="mt-8">Loading meeting…</p> : (
+      {!detail ? <p className="mt-8">Loading meeting…</p> : (
         <>
           <form className="mt-8 flex flex-wrap items-end gap-3" onSubmit={saveTitle}>
             <div className="min-w-64 flex-1"><label htmlFor="title" className="block text-sm font-medium">Meeting title</label><input id="title" className="mt-2 w-full rounded border border-slate-400 bg-white p-3 text-2xl font-semibold" maxLength={160} value={title} onChange={(event) => { editingRef.current = true; setTitle(event.target.value); }} /></div>

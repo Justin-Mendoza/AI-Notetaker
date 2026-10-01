@@ -14,7 +14,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.auth.jwt import get_current_user
+from app.auth.local import get_current_user
 from app.db.session import get_db
 from app.errors import ApiError
 from app.models.job import ProcessingJob

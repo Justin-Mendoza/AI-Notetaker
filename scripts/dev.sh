@@ -5,11 +5,11 @@ cd "$(dirname "$0")/.."
 docker compose up -d
 .venv/bin/alembic -c apps/api/alembic.ini upgrade head
 
-.venv/bin/uvicorn app.main:app --app-dir apps/api --reload --port 8000 &
+.venv/bin/uvicorn app.main:app --app-dir apps/api --reload --host 127.0.0.1 --port 8000 &
 api_pid=$!
 PYTHONPATH=apps/api .venv/bin/python -m app.worker.main &
 worker_pid=$!
-(cd apps/web && npm run dev) &
+(cd apps/web && npm run dev -- --hostname 127.0.0.1) &
 web_pid=$!
 
 cleanup() {
