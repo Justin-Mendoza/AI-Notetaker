@@ -9,6 +9,8 @@ Deploy `apps/web` as a Next.js application. Build `apps/api/Dockerfile` once and
 
 Both services need `DATABASE_URL`, Supabase auth settings, private bucket settings, `OPENAI_API_KEY`, and configurable model IDs. The worker image includes FFmpeg. Set `ALLOWED_WEB_ORIGIN` to the exact web origin. Put the API, worker, database, and bucket in the same region where possible. Use separate credentials and buckets for staging and production. Keep all server secrets out of the Next.js public environment.
 
+The default container deployment uses OpenAI providers. The optional [Whisper Local + Kyma setup](../docs/provider-options.md) runs the worker on the same Mac as Whisper Local; a hosted container cannot reach that Mac's loopback API.
+
 Run `alembic -c apps/api/alembic.ini upgrade head` using the API image as a release step **before** rolling out either service. Check `/readyz` and worker startup logs. Schedule `python -m app.worker.cleanup` hourly with the same image and secrets. Alert on failed jobs, overdue raw audio, and nonzero cleanup errors. `/internal/metrics` provides the current job counts and overdue-audio count to a private monitor when `METRICS_TOKEN` is set; do not expose the token in the web app.
 
 Configure a private bucket with no public-read policy. Use TLS for web, API, and object storage endpoints. Set a budget alert and provider rate limits. Document database backup retention and review transcription/LLM provider handling before accepting sensitive meetings or launching publicly.

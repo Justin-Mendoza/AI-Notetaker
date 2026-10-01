@@ -227,6 +227,72 @@ class OpenAISummarizer:
         )
 
 
+class KymaSummarizer(OpenAISummarizer):
+    """Use Kyma's OpenAI-compatible chat endpoint for structured meeting notes."""
+
+    provider = "kyma"
+
+    def __init__(self):
+        if not settings.kyma_api_key:
+            raise SummaryError("PROVIDER_UNAVAILABLE", transient=False)
+        if settings.kyma_base_url != "https://kymaapi.com/v1":
+            raise SummaryError("KYMA_URL_INVALID", transient=False)
+        self.model = settings.kyma_summary_model
+        self.client = OpenAI(
+            base_url=settings.kyma_base_url,
+            api_key=settings.kyma_api_key,
+            timeout=180,
+            max_retries=0,
+        )
+        self.check_active: Callable[[], None] | None = None
+
+    def _request(self, body: str, allowed_ids: set[uuid.UUID], instructions: str) -> SummaryContent:
+        if self.check_active:
+            self.check_active()
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": instructions},
+                    {"role": "user", "content": body},
+                ],
+                response_format={
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "meeting_notes_v1",
+                        "schema": SUMMARY_SCHEMA,
+                        "strict": True,
+                    },
+                },
+                max_tokens=3000,
+            )
+            if len(response.choices) != 1 or response.choices[0].finish_reason != "stop":
+                raise SummaryError("SUMMARY_INCOMPLETE")
+            message = response.choices[0].message
+            if getattr(message, "refusal", None):
+                raise SummaryError("SUMMARY_REFUSED")
+            if not isinstance(message.content, str):
+                raise SummaryError("SUMMARY_INVALID")
+            return validate_summary(json.loads(message.content), allowed_ids)
+        except (RateLimitError, APITimeoutError, APIConnectionError) as exc:
+            raise SummaryError("SUMMARY_TEMPORARY") from exc
+        except APIStatusError as exc:
+            raise SummaryError(
+                "SUMMARY_TEMPORARY" if exc.status_code >= 500 else "SUMMARY_REJECTED",
+                transient=exc.status_code >= 500,
+            ) from exc
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise SummaryError("SUMMARY_INVALID") from exc
+
+
+def create_summarizer() -> Summarizer:
+    if settings.summary_provider == "openai":
+        return OpenAISummarizer()
+    if settings.summary_provider == "kyma":
+        return KymaSummarizer()
+    raise SummaryError("SUMMARY_PROVIDER_INVALID", transient=False)
+
+
 class FakeSummarizer:
     provider = "fake"
     model = "fake-summary-v1"
