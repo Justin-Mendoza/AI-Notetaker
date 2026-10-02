@@ -49,6 +49,7 @@ def test_kyma_chat_uses_strict_schema_and_validates_result():
     notes = {
         "overview": "The group discussed planning.",
         "key_points": [],
+        "topics": [],
         "decisions": [],
         "action_items": [],
         "open_questions": [],
@@ -123,6 +124,7 @@ def test_kyma_retries_altered_evidence_without_saving_it():
         content = {
             "overview": "The group chose a cover.",
             "key_points": [],
+            "topics": [],
             "decisions": [{"text": "Use the blue cover.", "evidence_segment_ids": [evidence]}],
             "action_items": [],
             "open_questions": [],
@@ -149,4 +151,7 @@ def test_kyma_retries_altered_evidence_without_saving_it():
     assert schema["properties"]["decisions"]["items"]["properties"]["evidence_segment_ids"][
         "items"
     ]["enum"] == [str(segment_id)]
+    assert schema["properties"]["topics"]["items"]["properties"]["evidence_segment_ids"]["items"][
+        "enum"
+    ] == [str(segment_id)]
     assert requests[0]["max_tokens"] == 6000

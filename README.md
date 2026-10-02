@@ -1,6 +1,6 @@
-# Meeting Notes
+# Class Notes
 
-Private, single-owner meeting notes app for one Mac. The app records microphone audio after explicit consent, uploads it to private local storage, processes it in a separate worker, and saves a transcript and reviewable draft notes.
+Private, single-owner class notes app for one Mac. The app records microphone audio after explicit consent, uploads it to private local storage, processes it in a separate worker, and saves a transcript and reviewable study notes.
 
 The supplied `.env.example` selects [Whisper Local for transcription and Qwen through Kyma for summaries](docs/provider-options.md). Model and provider settings remain configurable. Audio stays on this Mac for transcription; the transcript goes to Kyma for summaries.
 
@@ -10,6 +10,8 @@ The supplied `.env.example` selects [Whisper Local for transcription and Qwen th
 - Whisper Local installed on this Mac using [the provider instructions](docs/provider-options.md), and a Kyma API key for summaries.
 
 ## Local startup
+
+For this Mac, double-click [Start Class Notes.command](Start%20Class%20Notes.command) in Finder. It starts Docker Desktop if needed, starts the local services, and opens the web app. Keep its Terminal window open while using the app. Double-click [Stop Class Notes.command](Stop%20Class%20Notes.command) to stop the services and PostgreSQL. Your saved classes remain in the named Docker volume; do not use `docker compose down -v` unless you intend to erase that database.
 
 1. Copy `.env.example` to `.env`. Set matching `POSTGRES_PASSWORD`/`DATABASE_URL` values and `KYMA_API_KEY`. Keep provider credentials out of `apps/web/.env.local`. Recordings are stored under the ignored `.data/recordings` directory with owner-only file permissions; set `LOCAL_RECORDING_DIR` to an absolute path if you want them elsewhere.
 2. Run `docker compose up -d` to start PostgreSQL on loopback.
@@ -22,7 +24,7 @@ Once dependencies and env files are set, `bash scripts/dev.sh` starts PostgreSQL
 
 The worker runs cleanup at startup and hourly to purge expired raw audio, remove deleted meetings and abandoned drafts, and sweep old recording files. You can also run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.cleanup` manually. Local operation and smoke-test steps are in [deploy/README.md](deploy/README.md).
 
-From the library, select **New meeting**, confirm the consent reminder, and start recording. The browser uploads once after Stop and keeps the captured file available for retry while the tab stays open. The worker transcribes approximate ten-minute chunks and saves the transcript, then produces a schema-validated summary. Both appear on the detail page as reviewable drafts. If summarization fails, the transcript stays available and retry resumes from it.
+From the library, select **Record a class**, confirm the consent reminder, and start recording. The browser uploads once after Stop and keeps the captured file available for retry while the tab stays open. The worker transcribes approximate ten-minute chunks and saves the transcript, then produces schema-validated study notes. Each topic has a heading, a short explanation, key details, and links to approximate transcript times. The page also includes a quick review, explicit assignments, and questions to revisit. You can copy or download the notes as Markdown and download the transcript as text. Existing recordings can regenerate notes from their saved transcripts. If summarization fails, the transcript and any previous notes remain available for retry.
 
 For non-sensitive local audio, run `bash scripts/generate_fixture.sh 120 /private/tmp/meeting-short.mp3`. Use `3600` for a 60-minute file above the speech API's per-file limit. The worker submits only compressed chunks below 20 MB.
 

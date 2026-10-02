@@ -34,7 +34,7 @@ def test_title_validation_and_rename(api_client):
         "/v1/meetings", json={"consent_confirmed": True, "consent_policy_version": "v1"}
     )
     meeting_id = response.json()["meeting"]["id"]
-    assert response.json()["meeting"]["title"] == "Untitled meeting"
+    assert response.json()["meeting"]["title"] == "Untitled class"
     assert client.patch(f"/v1/meetings/{meeting_id}", json={"title": "  "}).status_code == 422
     renamed = client.patch(f"/v1/meetings/{meeting_id}", json={"title": " New title "})
     assert renamed.status_code == 200

@@ -25,8 +25,24 @@ def empty_notes():
 
 def test_empty_decisions_and_actions_are_valid():
     result = validate_summary(empty_notes(), set())
+    assert result.topics == []  # Old saved summaries still load.
     assert result.decisions == []
     assert result.action_items == []
+
+
+def test_class_topic_explanation_requires_saved_segment_evidence():
+    segment_id = uuid.uuid4()
+    topic = {
+        "heading": "Photosynthesis",
+        "summary": "The class explained how plants convert light into chemical energy.",
+        "key_details": ["Chlorophyll absorbs light."],
+        "evidence_segment_ids": [str(segment_id)],
+    }
+    result = validate_summary(empty_notes() | {"topics": [topic]}, {segment_id})
+    assert result.topics[0].heading == "Photosynthesis"
+    with pytest.raises(SummaryError) as error:
+        validate_summary(empty_notes() | {"topics": [topic]}, set())
+    assert error.value.code == "SUMMARY_EVIDENCE_INVALID"
 
 
 def test_malformed_output_and_unknown_evidence_are_rejected():

@@ -137,7 +137,7 @@ export default function NewMeeting() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title.trim() || undefined, consent_confirmed: true, consent_policy_version: "v1" }),
       });
-      if (!response.ok) throw new Error("Could not create the meeting. Check your connection and try again.");
+      if (!response.ok) throw new Error("Could not start this class recording. Check your connection and try again.");
       const created = await response.json();
       meetingIdRef.current = created.meeting.id;
       uploadKeyRef.current = crypto.randomUUID();
@@ -179,7 +179,7 @@ export default function NewMeeting() {
         setBlob(captured);
         if (!captured.size || interruptedRef.current) {
           setPhase("error");
-          if (!captured.size) setMessage("No audio was captured. Check the microphone and try a new meeting.");
+          if (!captured.size) setMessage("No audio was captured. Check the microphone and try a new recording.");
           return;
         }
         void uploadRecording(captured);
@@ -217,13 +217,13 @@ export default function NewMeeting() {
     <main className="mx-auto max-w-3xl px-6 py-10">
       <Link className="text-teal-800 underline" href="/" onClick={(event) => {
         if (hasUnsavedAudio && !window.confirm("Your recording has not finished uploading. Leave this page?")) event.preventDefault();
-      }}>← Meeting library</Link>
-      <h1 className="mt-8 text-4xl font-semibold">New meeting</h1>
+      }}>← Class library</Link>
+      <h1 className="mt-8 text-4xl font-semibold">Record a class</h1>
       <p className="mt-3 text-slate-700">Microphone audio only. Maximum 90 minutes or 100 MB. This tab must remain open until upload completes; a browser crash before upload may lose the recording.</p>
         <div className="mt-8 rounded-2xl bg-white p-7 shadow-sm">
-          <label className="block font-medium" htmlFor="meeting-title">Meeting title</label>
-          <input id="meeting-title" className="mt-2 w-full rounded border border-slate-400 p-3" maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} disabled={phase !== "idle"} placeholder="Untitled meeting" />
-          <label className="mt-6 flex items-start gap-3 leading-relaxed"><input type="checkbox" className="mt-1" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={phase !== "idle"} /><span>I have informed participants and may record this meeting. Recording rules vary by place and context.</span></label>
+          <label className="block font-medium" htmlFor="meeting-title">Class title</label>
+          <input id="meeting-title" className="mt-2 w-full rounded border border-slate-400 p-3" maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} disabled={phase !== "idle"} placeholder="Untitled class" />
+          <label className="mt-6 flex items-start gap-3 leading-relaxed"><input type="checkbox" className="mt-1" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={phase !== "idle"} /><span>I have informed the people who need to know and may record this class. Recording rules and school policies vary.</span></label>
           {phase === "recording" ? <div className="mt-8"><p className="text-xl font-semibold"><span aria-hidden="true" className="mr-2 inline-block h-3 w-3 rounded-full bg-red-600" />Recording · {clock}</p><p className="mt-2 text-sm text-slate-600">{(recordedBytes / 1_000_000).toFixed(1)} MB captured</p><button className="mt-5 rounded bg-red-700 px-6 py-3 font-semibold text-white" onClick={stopRecording}>Stop recording</button></div> : phase === "idle" ? <button className="mt-8 rounded bg-teal-800 px-6 py-3 font-semibold text-white disabled:opacity-50" disabled={!consent} onClick={() => void startRecording()}>Start recording</button> : <p className="mt-8 font-medium">{phase === "starting" ? "Requesting microphone…" : phase === "finishing" ? "Finishing recording…" : phase === "uploading" ? `Uploading… ${uploadPercent}%` : phase === "queued" ? "Upload complete." : "Recording needs attention."}</p>}
           {phase === "uploading" && <progress className="mt-4 w-full" max={100} value={uploadPercent} aria-label="Upload progress" />}
           {phase === "error" && blob && <div className="mt-5 flex flex-wrap gap-3"><button className="rounded border border-teal-800 px-4 py-2 text-teal-800" onClick={downloadLocal}>Download captured audio</button>{blob.size > 0 && blob.size <= MAX_BYTES && <button className="rounded bg-teal-800 px-4 py-2 text-white" onClick={() => void uploadRecording(blob)}>Retry upload</button>}</div>}
