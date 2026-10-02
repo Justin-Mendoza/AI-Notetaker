@@ -19,7 +19,7 @@ from app.observability import configure_logging
 from app.settings import settings
 from app.size_limit import UploadLimitMiddleware, UploadTooLarge
 
-app = FastAPI(title="Meeting Notes API", version="0.1.0")
+app = FastAPI(title="Class Notes API", version="0.1.0")
 configure_logging()
 logger = logging.getLogger(__name__)
 app.add_middleware(UploadLimitMiddleware)

@@ -15,6 +15,7 @@ from app.db.base import Base
 from app.models.job import ProcessingJob
 from app.models.meeting import Meeting, utc_now
 from app.models.recording import Recording
+from app.models.summary import Summary
 from app.models.transcript import TranscriptSegment
 from app.services.summarization import FakeSummarizer
 from app.services.transcription import FakeTranscriber, TranscriptionError
@@ -418,7 +419,82 @@ def test_summary_retry_uses_saved_transcript_without_retranscription(worker_data
     with factory() as db:
         assert db.get(Meeting, meeting_id).status == "ready"
         assert len(list(db.scalars(select(TranscriptSegment)))) == 3
+        job = db.scalar(select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id))
+        assert job.last_error_code is None
         assert transcriber.calls == [0, 1, 2]
+
+
+def test_regenerated_class_notes_replace_summary_without_retranscription(
+    worker_database, monkeypatch
+):
+    factory, meeting_id, source = worker_database
+    monkeypatch.setattr(runner, "inspect_audio", lambda path, mime: (mime, 1800000))
+    transcriber = FakeTranscriber(["First concept", "Second concept", "Third concept"])
+    storage = FakeStorage(source)
+    assert runner.run_once("worker", factory, storage, transcriber, three_chunks, heartbeat=False)
+    initial = FakeSummarizer(
+        {
+            "overview": "Three concepts were taught.",
+            "key_points": [],
+            "decisions": [],
+            "action_items": [],
+            "open_questions": [],
+        }
+    )
+    assert runner.run_once(
+        "worker",
+        factory,
+        storage,
+        transcriber,
+        three_chunks,
+        heartbeat=False,
+        summarizer=initial,
+    )
+    with factory() as db:
+        first_segment = db.scalar(
+            select(TranscriptSegment)
+            .where(TranscriptSegment.meeting_id == meeting_id)
+            .order_by(TranscriptSegment.sequence_no)
+        )
+        first_segment_id = first_segment.id
+        job = db.scalar(select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id))
+        job.status = "pending"
+        job.attempts = 0
+        job.run_after = utc_now()
+        db.get(Meeting, meeting_id).status = "summarizing"
+        db.commit()
+    updated = FakeSummarizer(
+        {
+            "overview": "Three concepts were taught in order.",
+            "key_points": ["Review the first concept."],
+            "topics": [
+                {
+                    "heading": "First concept",
+                    "summary": "The instructor introduced the first concept.",
+                    "key_details": ["It came before the second concept."],
+                    "evidence_segment_ids": [str(first_segment_id)],
+                }
+            ],
+            "decisions": [],
+            "action_items": [],
+            "open_questions": [],
+        }
+    )
+    assert runner.run_once(
+        "worker",
+        factory,
+        storage,
+        transcriber,
+        three_chunks,
+        heartbeat=False,
+        summarizer=updated,
+    )
+    with factory() as db:
+        summaries = list(db.scalars(select(Summary).where(Summary.meeting_id == meeting_id)))
+        assert len(summaries) == 1
+        assert summaries[0].content_json["topics"][0]["heading"] == "First concept"
+        assert db.get(Meeting, meeting_id).status == "ready"
+    assert transcriber.calls == [0, 1, 2]
 
 
 def test_deletion_during_provider_call_prevents_transcript_write(worker_database, monkeypatch):

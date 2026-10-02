@@ -310,6 +310,7 @@ def save_summary(
             stored.content_json = validated.model_dump(mode="json")
             stored.updated_at = now
         job.status = "completed"
+        job.last_error_code = None
         job.lease_until = None
         job.locked_by = None
         job.updated_at = now
