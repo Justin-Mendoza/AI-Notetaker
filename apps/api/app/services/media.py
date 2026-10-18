@@ -5,7 +5,7 @@ from pathlib import Path
 
 from app.errors import ApiError
 
-MAX_DURATION_MS = 90 * 60 * 1000
+MAX_DURATION_MS = 120 * 60 * 1000
 MAX_FILE_BYTES = 100_000_000
 
 MIME_SIGNATURES = {
@@ -111,5 +111,5 @@ def inspect_audio(path: Path, claimed_mime: str) -> tuple[str, int]:
         raise ApiError(415, "INVALID_MEDIA", "The recording could not be read") from exc
     duration_ms = math.ceil(duration * 1000)
     if duration_ms > MAX_DURATION_MS:
-        raise ApiError(413, "DURATION_LIMIT", "Recordings must be 90 minutes or shorter")
+        raise ApiError(413, "DURATION_LIMIT", "Recordings must be 120 minutes or shorter")
     return mime_type, duration_ms

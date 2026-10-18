@@ -13,3 +13,5 @@ node_modules/
 .next/
 *.tsbuildinfo
 .DS_Store
+.venv-cohere/
+.venv-cohere-speech/

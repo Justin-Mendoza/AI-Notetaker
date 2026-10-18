@@ -6,7 +6,7 @@ from app.errors import ApiError
 from app.services import media
 
 
-def test_probe_rejects_audio_over_ninety_minutes(tmp_path, monkeypatch):
+def test_probe_rejects_audio_over_two_hours(tmp_path, monkeypatch):
     path = tmp_path / "sample.wav"
     path.write_bytes(b"RIFFxxxxWAVE")
     monkeypatch.setattr(
@@ -14,7 +14,7 @@ def test_probe_rejects_audio_over_ninety_minutes(tmp_path, monkeypatch):
         "run",
         lambda *args, **kwargs: SimpleNamespace(
             returncode=0,
-            stdout='{"streams":[{"codec_type":"audio"}],"format":{"duration":"5401"}}',
+            stdout='{"streams":[{"codec_type":"audio"}],"format":{"duration":"7201"}}',
         ),
     )
     with pytest.raises(ApiError) as error:

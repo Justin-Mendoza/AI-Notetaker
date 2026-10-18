@@ -178,11 +178,9 @@ def test_sixty_minute_job_reaches_ready_with_all_six_chunks(worker_database, mon
 @pytest.mark.skipif(
     not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="FFmpeg is not installed"
 )
-def test_real_sixty_minute_fixture_over_25_mb_processes_with_fake_providers(
-    worker_database, tmp_path
-):
+def test_real_two_hour_fixture_processes_all_twelve_chunks(worker_database, tmp_path):
     factory, meeting_id, _ = worker_database
-    fixture = tmp_path / "sixty-minutes.mp3"
+    fixture = tmp_path / "two-hours.mp3"
     subprocess.run(
         [
             "ffmpeg",
@@ -196,7 +194,7 @@ def test_real_sixty_minute_fixture_over_25_mb_processes_with_fake_providers(
             "-i",
             "anullsrc=channel_layout=mono:sample_rate=16000",
             "-t",
-            "3600",
+            "7200",
             "-c:a",
             "libmp3lame",
             "-b:a",
@@ -214,10 +212,10 @@ def test_real_sixty_minute_fixture_over_25_mb_processes_with_fake_providers(
         recording.size_bytes = len(source)
         recording.sha256 = hashlib.sha256(source).hexdigest()
         db.commit()
-    transcriber = FakeTranscriber([f"Part {number}" for number in range(6)])
+    transcriber = FakeTranscriber([f"Part {number}" for number in range(12)])
     summarizer = FakeSummarizer(
         {
-            "overview": "Six parts were reviewed.",
+            "overview": "Twelve parts were reviewed.",
             "key_points": [],
             "decisions": [],
             "action_items": [],
@@ -234,9 +232,9 @@ def test_real_sixty_minute_fixture_over_25_mb_processes_with_fake_providers(
         segments = list(
             db.scalars(select(TranscriptSegment).order_by(TranscriptSegment.sequence_no))
         )
-        assert len(segments) == 6
-        assert [segment.text for segment in segments] == [f"Part {number}" for number in range(6)]
-    assert transcriber.calls == list(range(6))
+        assert len(segments) == 12
+        assert [segment.text for segment in segments] == [f"Part {number}" for number in range(12)]
+    assert transcriber.calls == list(range(12))
 
 
 def test_retry_keeps_completed_segments_without_duplicate_calls(worker_database, monkeypatch):
@@ -520,3 +518,100 @@ def test_deletion_during_provider_call_prevents_transcript_write(worker_database
     )
     with factory() as db:
         assert list(db.scalars(select(TranscriptSegment))) == []
+
+
+def test_live_capture_fills_only_missing_minutes(worker_database, monkeypatch):
+    factory, meeting_id, source = worker_database
+    with factory() as db:
+        job = db.scalar(select(ProcessingJob))
+        job.kind = "process_live_recording"
+        db.add(
+            TranscriptSegment(
+                meeting_id=meeting_id,
+                sequence_no=0,
+                start_ms=0,
+                end_ms=60000,
+                text="Saved during class",
+                provider="cohere-local",
+                model="cohere-test",
+                created_at=utc_now(),
+            )
+        )
+        db.commit()
+    monkeypatch.setattr(runner, "inspect_audio", lambda *args: ("audio/webm", 125000))
+
+    def live_split(path, duration, directory, chunk_ms):
+        assert chunk_ms == 60000
+        chunks = []
+        for i in range(3):
+            chunk = directory / f"chunk_{i:04d}.mp3"
+            chunk.write_bytes(b"audio")
+            chunks.append(audio.AudioChunk(i, i * 60000, min((i + 1) * 60000, duration), chunk))
+        return chunks
+
+    monkeypatch.setattr(runner, "split_audio", live_split)
+    transcriber = FakeTranscriber(["Do not call again", "Second minute", "Last five seconds"])
+    assert runner.run_once("worker", factory, FakeStorage(source), transcriber, heartbeat=False)
+    assert transcriber.calls == [1, 2]
+    with factory() as db:
+        segments = list(
+            db.scalars(select(TranscriptSegment).order_by(TranscriptSegment.sequence_no))
+        )
+        assert [segment.text for segment in segments] == [
+            "Saved during class",
+            "Second minute",
+            "Last five seconds",
+        ]
+        assert db.scalar(select(ProcessingJob)).stage == "summarizing"
+
+
+@pytest.mark.parametrize(
+    "saved_sequences, expected_stage", [([0, 1], "summarizing"), ([0, 2], "transcribing")]
+)
+def test_shorter_recovered_backup_retains_live_minutes_without_accepting_gaps(
+    worker_database, monkeypatch, saved_sequences, expected_stage
+):
+    factory, meeting_id, source = worker_database
+    with factory() as db:
+        db.scalar(select(ProcessingJob)).kind = "process_live_recording"
+        for sequence in saved_sequences:
+            db.add(
+                TranscriptSegment(
+                    meeting_id=meeting_id,
+                    sequence_no=sequence,
+                    start_ms=sequence * 60000,
+                    end_ms=(sequence + 1) * 60000,
+                    text=f"Confirmed minute {sequence + 1}",
+                    provider="cohere-local",
+                    model="test",
+                    created_at=utc_now(),
+                )
+            )
+        db.commit()
+    monkeypatch.setattr(runner, "inspect_audio", lambda *args: ("audio/webm", 50000))
+
+    def recovered_split(path, duration, directory, chunk_ms):
+        chunk = directory / "chunk_0000.mp3"
+        chunk.write_bytes(b"recovered")
+        return [audio.AudioChunk(0, 0, duration, chunk)]
+
+    monkeypatch.setattr(runner, "split_audio", recovered_split)
+    transcriber = FakeTranscriber([])
+    runner.run_once("worker", factory, FakeStorage(source), transcriber, heartbeat=False)
+    assert transcriber.calls == []
+    with factory() as db:
+        job = db.scalar(select(ProcessingJob))
+        assert job.stage == expected_stage
+        if expected_stage == "summarizing":
+            assert job.cursor == 2
+            assert job.last_error_code is None
+        else:
+            assert job.last_error_code == "TRANSCRIPT_INCOMPLETE"
+        assert (
+            list(
+                db.scalars(
+                    select(TranscriptSegment.sequence_no).order_by(TranscriptSegment.sequence_no)
+                )
+            )
+            == saved_sequences
+        )

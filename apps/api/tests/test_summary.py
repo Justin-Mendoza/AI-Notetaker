@@ -108,3 +108,37 @@ def test_long_transcript_uses_chronological_slices_then_synthesis():
     assert "A" in summarizer.calls[0][0]
     assert "B" in summarizer.calls[-2][0]
     assert summarizer.calls[-1][1] == {first.id, second.id}
+
+
+def test_long_class_keeps_detailed_topics_even_when_final_overview_is_brief():
+    class TopicSummarizer(OpenAISummarizer):
+        def __init__(self):
+            self.calls = 0
+
+        def _request(self, body, allowed_ids, instructions):
+            self.calls += 1
+            if body.startswith("Chronological factual draft notes"):
+                return SummaryContent.model_validate(empty_notes())
+            return SummaryContent.model_validate(
+                empty_notes()
+                | {
+                    "topics": [
+                        {
+                            "heading": f"Concept {self.calls}",
+                            "summary": "A detailed explanation",
+                            "key_details": ["A specific taught example"],
+                            "evidence_segment_ids": [str(next(iter(allowed_ids)))],
+                        }
+                    ],
+                }
+            )
+
+    summarizer = TopicSummarizer()
+    result = summarizer.summarize(
+        [
+            SummarySegment(uuid.uuid4(), 0, 60000, "Lecture detail. " * MAX_SLICE_CHARS),
+        ]
+    )
+    assert len(result.topics) == summarizer.calls - 1
+    assert result.topics[-1].heading == f"Concept {summarizer.calls - 1}"
+    assert all(topic.key_details == ["A specific taught example"] for topic in result.topics)

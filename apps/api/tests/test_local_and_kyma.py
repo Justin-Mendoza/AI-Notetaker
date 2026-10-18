@@ -155,3 +155,49 @@ def test_kyma_retries_altered_evidence_without_saving_it():
         "enum"
     ] == [str(segment_id)]
     assert requests[0]["max_tokens"] == 6000
+
+
+def test_cohere_local_uses_selected_model_and_loopback(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        transcription,
+        "settings",
+        SimpleNamespace(
+            cohere_local_base_url="http://127.0.0.1:7778/v1",
+            cohere_local_model="cohere-test",
+            stt_provider="cohere_local",
+        ),
+    )
+    transcriber = transcription.create_transcriber()
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return httpx.Response(200, json={"text": "A local Cohere lecture transcript"})
+
+    transcriber.client = OpenAI(
+        base_url="http://127.0.0.1:7778/v1",
+        api_key="local-cohere",
+        http_client=httpx.Client(transport=httpx.MockTransport(handle)),
+    )
+    chunk = tmp_path / "chunk_0000.mp3"
+    chunk.write_bytes(b"synthetic audio")
+    assert transcriber.transcribe(chunk) == "A local Cohere lecture transcript"
+    assert transcriber.provider == "cohere-local"
+    assert transcriber.model == "cohere-test"
+    assert requests[0].url.path == "/v1/audio/transcriptions"
+    assert b"cohere-test" in requests[0].content
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.com/v1",
+        "http://user:pass@localhost/v1",
+        "http://localhost/v1?redirect=remote",
+    ],
+)
+def test_cohere_local_rejects_unsafe_urls(monkeypatch, url):
+    monkeypatch.setattr(transcription, "settings", SimpleNamespace(cohere_local_base_url=url))
+    with pytest.raises(transcription.TranscriptionError) as error:
+        transcription.CohereLocalTranscriber()
+    assert error.value.code == "LOCAL_STT_URL_INVALID"

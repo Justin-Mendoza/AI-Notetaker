@@ -1,48 +1,40 @@
 # Transcription and summary providers
 
-The default worker uses OpenAI `gpt-4o-transcribe` and `gpt-4o-mini`. For the personal Mac setup, it can use [drajb/whisper-local](https://github.com/drajb/whisper-local) for speech recognition and Kyma's Qwen 3.7 Flash for draft notes. Provider selection changes only the worker; the browser, private upload, queue, transcript, validation, and cleanup remain the same.
+## Current Mac setup: Cohere Transcribe locally
 
-## Mac worker with Whisper Local and Kyma
+The Mac setup uses **Cohere Transcribe 03-2026**, via MLX on Apple Silicon, with the community `mlx-community/cohere-transcribe-03-2026-mlx-8bit` conversion. This is a quantized conversion, not an official Cohere-hosted endpoint. Audio is processed on the Mac. DeepSeek v4.1 Flash through Kyma receives the resulting transcript to create study notes.
 
-1. On the Mac running the worker, install Python 3.11–3.13 and FFmpeg, then install Whisper Local in a separate environment. `soundfile` lets its API decode the MP3 chunks sent by this app:
+A separate `.venv-cohere-speech` keeps MLX dependencies out of the API environment:
 
-   ```bash
-   brew install ffmpeg
-   python3.12 -m venv .venv-whisper-local
-   .venv-whisper-local/bin/python -m pip install whisper-local==0.21.0 soundfile==0.14.0
-   ./scripts/start-whisper-local.sh
-   ```
+```bash
+uv venv --python python3.14 .venv-cohere-speech
+uv pip install --python .venv-cohere-speech/bin/python -r scripts/cohere-requirements.txt
+HF_HOME="$PWD/.data/cohere-cache" .venv-cohere-speech/bin/python -c 'from huggingface_hub import snapshot_download; snapshot_download("mlx-community/cohere-transcribe-03-2026-mlx-8bit", allow_patterns=["mlx-int8/*"], local_dir=".data/cohere-model"); snapshot_download("mlx-community/silero-vad", allow_patterns=["*.json", "*.safetensors"])'
+```
 
-   The first server start downloads the selected Whisper model into the user's Hugging Face cache. Keep that terminal open. The server listens only on `127.0.0.1:7777`; check `http://127.0.0.1:7777/health` before starting the worker.
-2. Run this app's API and worker on the **same Mac**. Set these values in the root `.env`:
+The downloads must finish before offline use. The ASR model loads with strict checkpoint validation from `.data/cohere-model/mlx-int8` using `mlx-speech`; MLX Audio supplies only the Silero voice detector. The launcher sets `HF_HUB_OFFLINE=1` for transcription. It loads the model once, binds only to `127.0.0.1:7778`, serializes requests, and processes one short model window at a time to bound GPU memory. Local voice activity detection skips silence. English is the default language; `COHERE_LOCAL_LANGUAGE` can override it when launching the service. Do not expose this local service to the network.
 
-   ```dotenv
-   STT_PROVIDER=whisper_local
-   WHISPER_LOCAL_BASE_URL=http://127.0.0.1:7777/v1
-   WHISPER_LOCAL_MODEL_LABEL=base
-   SUMMARY_PROVIDER=kyma
-   KYMA_API_KEY=your-server-only-key
-   KYMA_BASE_URL=https://kymaapi.com/v1
-   KYMA_SUMMARY_MODEL=qwen3.7-flash
-   ```
+Root `.env` configuration:
 
-3. Set `WHISPER_LOCAL_MODEL_LABEL` to the model actually selected in Whisper Local, so stored transcript metadata is accurate. Its local endpoint accepts `model=whisper-1` but runs the model selected in its own settings. Use a short non-sensitive meeting to check the transcript and Kyma's JSON schema response, then benchmark a 60-minute recording on the actual Mac.
+```dotenv
+STT_PROVIDER=cohere_local
+COHERE_LOCAL_BASE_URL=http://127.0.0.1:7778/v1
+COHERE_LOCAL_MODEL=mlx-community/cohere-transcribe-03-2026-mlx-8bit
+SUMMARY_PROVIDER=kyma
+KYMA_BASE_URL=https://kymaapi.com/v1
+KYMA_SUMMARY_MODEL=deepseek-v4.1-flash
+```
 
-The worker reads class audio from this app's private recording directory into temporary disk space. Whisper Local transcribes it on that Mac; the audio is not sent to a transcription API. **The transcript is sent to Kyma** for study-note generation. Kyma is an API aggregator, so review its handling of class text before using sensitive recordings. Keep the Whisper Local server bound to loopback. It has no API authentication, and this app intentionally rejects a non-loopback URL.
+Keep `KYMA_API_KEY` server-side in `.env`. A GitHub Actions secret is separate from the app's local credentials. The Start Class Notes launcher starts the database, Cohere service, API, worker, and web app. The health endpoint returns the loaded model at `http://127.0.0.1:7778/health`.
 
-This version runs the worker and Whisper Local on the same Mac. A hosted worker container cannot reach the Mac's Whisper Local server using `127.0.0.1`, and the app's API has no hosted authentication. Do not expose either local service to the network.
+During class, complete one-minute transcript windows are saved and shown in the recorder. The browser sends a growing audio prefix to the local API so container headers are preserved; the API extracts only the next complete minute for Cohere. These requests stay on loopback. They are serialized and time-limited; a live failure does not stop recording. After Stop, the worker reuses saved minutes and fills gaps and the last partial minute from the full recording. Older recordings use ten-minute recovery chunks. Cohere divides audio into short inference windows. DeepSeek receives the complete transcript after recording ends. A two-hour class is supported, subject to the 100 MB upload limit. Capture requests 64 kbps audio (about 58 MB for two hours, excluding container overhead; browsers may choose a different bitrate).
 
-## Provider configuration
+Keep the Mac awake and the browser tab open throughout recording and upload. Browser backups recover saved chunks on the same browser and origin; private mode, browser storage removal, and disk failures can prevent recovery. Recording cannot continue while the Mac sleeps or the page is closed. Before class, make a short recording with the actual microphone and check both the transcript and notes. Synthetic tests do not establish classroom accuracy or processing time.
 
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `STT_PROVIDER` | `openai` | `openai` or `whisper_local` |
-| `STT_MODEL` | `gpt-4o-transcribe` | OpenAI transcription model |
-| `WHISPER_LOCAL_BASE_URL` | `http://127.0.0.1:7777/v1` | Loopback endpoint used only for `whisper_local` |
-| `WHISPER_LOCAL_MODEL_LABEL` | `base` | Metadata label; match Whisper Local's model setting |
-| `SUMMARY_PROVIDER` | `openai` | `openai` or `kyma` |
-| `SUMMARY_MODEL` | `gpt-4o-mini` | OpenAI Responses model |
-| `KYMA_API_KEY` | unset | Server-only Kyma key |
-| `KYMA_SUMMARY_MODEL` | `qwen3.7-flash` | Kyma chat model ID |
+Sources: [Cohere model card](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026), [MLX Audio Cohere implementation](https://github.com/Blaizzy/mlx-audio/tree/main/mlx_audio/stt/models/cohere_asr).
 
-Kyma's Chat Completions endpoint uses `response_format` with `json_schema`. The app validates every response and evidence ID again before saving. A synthetic lesson passed a live credentialed check for topic headings, explanations, and transcript evidence. Invalid or truncated output leaves the transcript available and makes note generation retryable.
+## Other supported providers
+
+OpenAI transcription remains available with `STT_PROVIDER=openai`, `OPENAI_API_KEY`, and `STT_MODEL`. Whisper Local remains available with `STT_PROVIDER=whisper_local`, `WHISPER_LOCAL_BASE_URL=http://127.0.0.1:7777/v1`, and `WHISPER_LOCAL_MODEL_LABEL=base`; start it with `scripts/start-whisper-local.sh`.
+
+Summaries use `SUMMARY_PROVIDER=kyma` or `openai`. Kyma responses are schema-validated with transcript evidence IDs. Failed summarization retains the transcript and existing notes so generation can be retried.

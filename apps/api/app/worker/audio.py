@@ -33,7 +33,9 @@ def run_ffmpeg(args: list[str], timeout: int) -> None:
         raise AudioProcessingError("ffmpeg rejected audio")
 
 
-def split_audio(source: Path, duration_ms: int, directory: Path) -> list[AudioChunk]:
+def split_audio(
+    source: Path, duration_ms: int, directory: Path, chunk_ms: int = CHUNK_MS
+) -> list[AudioChunk]:
     """Normalize then create approximate ten-minute MP3 chunks below the STT limit."""
     if duration_ms <= 0:
         raise AudioProcessingError("invalid duration")
@@ -57,12 +59,12 @@ def split_audio(source: Path, duration_ms: int, directory: Path) -> list[AudioCh
     )
     if not normalized.exists() or normalized.stat().st_size == 0:
         raise AudioProcessingError("normalization produced no audio")
-    starts = list(range(0, duration_ms, CHUNK_MS))
-    if len(starts) > 1 and duration_ms - starts[-1] < 1000:
+    starts = list(range(0, duration_ms, chunk_ms))
+    if chunk_ms == CHUNK_MS and len(starts) > 1 and duration_ms - starts[-1] < 1000:
         starts.pop()
     chunks = []
     for number, start_ms in enumerate(starts):
-        end_ms = min(duration_ms, start_ms + CHUNK_MS)
+        end_ms = min(duration_ms, start_ms + chunk_ms)
         if number == len(starts) - 1:
             end_ms = duration_ms
         chunk_path = directory / f"chunk_{number:04d}.mp3"

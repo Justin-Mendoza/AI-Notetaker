@@ -75,6 +75,24 @@ export interface paths {
         patch: operations["rename_meeting_v1_meetings__meeting_id__patch"];
         trace?: never;
     };
+    "/v1/meetings/{meeting_id}/live-transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Live Transcript */
+        get: operations["get_live_transcript_v1_meetings__meeting_id__live_transcript_get"];
+        put?: never;
+        /** Transcribe Live Window */
+        post: operations["transcribe_live_window_v1_meetings__meeting_id__live_transcript_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/meetings/{meeting_id}/recording": {
         parameters: {
             query?: never;
@@ -175,12 +193,24 @@ export interface components {
             /** Task */
             task: string;
         };
+        /** Body_transcribe_live_window_v1_meetings__meeting_id__live_transcript_post */
+        Body_transcribe_live_window_v1_meetings__meeting_id__live_transcript_post: {
+            /** File */
+            file: string;
+            /** Sequence No */
+            sequence_no: number;
+        };
         /** Body_upload_recording_v1_meetings__meeting_id__recording_post */
         Body_upload_recording_v1_meetings__meeting_id__recording_post: {
             /** Duration Ms */
             duration_ms: number;
             /** File */
             file: string;
+            /**
+             * Live Transcription
+             * @default false
+             */
+            live_transcription: boolean;
         };
         /** CreateMeeting */
         CreateMeeting: {
@@ -586,6 +616,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeetingResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_live_transcript_v1_meetings__meeting_id__live_transcript_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transcribe_live_window_v1_meetings__meeting_id__live_transcript_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_transcribe_live_window_v1_meetings__meeting_id__live_transcript_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentOut"];
                 };
             };
             /** @description Validation Error */

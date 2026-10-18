@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from app.settings import settings
 
 SCHEMA_VERSION = "v2"
-PROMPT_VERSION = "v4"
+PROMPT_VERSION = "v5"
 MAX_SLICE_CHARS = 24_000
 
 SUMMARY_PROMPT = """Create clear study notes for a student from the transcript below.
@@ -253,13 +253,18 @@ class OpenAISummarizer:
         body = "Chronological factual draft notes from transcript slices:\n" + "\n".join(
             json.dumps(note.model_dump(mode="json")) for note in intermediate
         )
-        return self._request(
+        combined = self._request(
             body,
             {segment.id for segment in segments},
             SUMMARY_PROMPT
-            + " Combine the chronological drafts. Preserve every distinct substantive topic, "
-            "merge only duplicates, keep explanations and key details, and retain evidence IDs.",
+            + " Combine the chronological drafts into the overview, quick review, announcements, "
+            "assignments, and open questions. Return topics as an empty array in this final "
+            "response: the detailed chronological topic notes are preserved separately. "
+            "Retain evidence IDs and do not invent assignments.",
         )
+        # A two-hour class must not lose its topic detail to a short final overview.
+        combined.topics = [topic for note in intermediate for topic in note.topics]
+        return combined
 
 
 class KymaSummarizer(OpenAISummarizer):

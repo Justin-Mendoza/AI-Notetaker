@@ -406,6 +406,7 @@ def process_job(
         if recording is None or recording.deleted_at is not None:
             raise ProcessingFailure("MISSING_RECORDING", transient=False)
         key, mime, sha256 = recording.object_key, recording.mime_type, recording.sha256
+        live_capture = job.kind == "process_live_recording"
         meeting_id = meeting.id
 
     with tempfile.TemporaryDirectory(prefix="meeting-worker-") as directory_text:
@@ -430,7 +431,11 @@ def process_job(
                 "LIMIT_EXCEEDED" if exc.status_code == 413 else "INVALID_AUDIO", transient=False
             ) from exc
         try:
-            chunks = splitter(source, duration_ms, directory)
+            chunks = (
+                split_audio(source, duration_ms, directory, chunk_ms=60_000)
+                if live_capture
+                else splitter(source, duration_ms, directory)
+            )
         except AudioProcessingError as exc:
             raise ProcessingFailure("INVALID_AUDIO", transient=False) from exc
         if not chunks:
@@ -453,7 +458,10 @@ def process_job(
             except TranscriptionError as exc:
                 raise ProcessingFailure(exc.code, exc.transient) from exc
             save_segment(session_factory, job_id, worker_id, chunk, text, transcriber)
-        complete_transcription(session_factory, job_id, worker_id, len(chunks))
+        # A recovered browser backup can be shorter than the audio already transcribed live.
+        # Keep those confirmed minutes; completion still requires a contiguous transcript.
+        count = max(len(chunks), max(existing, default=-1) + 1) if live_capture else len(chunks)
+        complete_transcription(session_factory, job_id, worker_id, count)
 
 
 def run_once(

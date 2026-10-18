@@ -1,0 +1,120 @@
+{
+  "include": [
+    "apps/api/app/*",
+    "apps/api/alembic/*",
+    "apps/api/alembic.ini",
+    "apps/api/pyproject.toml",
+    "apps/api/Dockerfile",
+    "apps/web/app/*.tsx",
+    "apps/web/lib/*",
+    "apps/web/next.config.ts",
+    "apps/web/tsconfig.json",
+    "apps/web/package.json",
+    "scripts/*",
+    "*.command",
+    "docker-compose.yml",
+    ".github/workflows/ci.yml",
+    "apps/web/components/*"
+  ],
+  "exclude": [
+    "**/.env*",
+    "**/tests/*",
+    "**/__pycache__/*",
+    "**/node_modules/*",
+    "**/*.lock",
+    "**/package-lock.json",
+    ".data/*",
+    "recordings/*",
+    "docs/openapi.json",
+    "apps/web/next-env.d.ts"
+  ],
+  "max_files": 160,
+  "max_file_chars": 18000,
+  "max_total_chars": 180000,
+  "batch_chars": 24000,
+  "max_calls": 12,
+  "max_output_tokens": 6000,
+  "max_diagrams": 6,
+  "request_timeout_seconds": 120,
+  "maps": {
+    "web": {
+      "include": [
+        "apps/web/*"
+      ],
+      "depends_on": [
+        "meeting-api"
+      ]
+    },
+    "meeting-api": {
+      "include": [
+        "apps/api/app/main.py",
+        "apps/api/app/api/*",
+        "apps/api/app/auth/*",
+        "apps/api/app/size_limit.py",
+        "apps/api/app/services/media.py",
+        "apps/api/app/services/summarization.py",
+        "apps/api/app/__init__.py",
+        "apps/api/app/settings.py",
+        "apps/api/app/errors.py",
+        "apps/api/app/observability.py",
+        "apps/api/app/services/live.py",
+        "apps/api/app/services/transcription.py",
+        "apps/api/app/worker/audio.py"
+      ],
+      "depends_on": [
+        "persistence"
+      ]
+    },
+    "processing": {
+      "include": [
+        "apps/api/app/worker/*",
+        "apps/api/app/services/transcription.py",
+        "apps/api/app/services/summarization.py",
+        "apps/api/app/services/media.py",
+        "apps/api/app/__init__.py",
+        "apps/api/app/settings.py",
+        "apps/api/app/errors.py",
+        "apps/api/app/observability.py",
+        "scripts/cohere_server.py",
+        "scripts/start-cohere-local.sh",
+        "scripts/cohere-requirements.txt"
+      ],
+      "depends_on": [
+        "persistence"
+      ]
+    },
+    "persistence": {
+      "include": [
+        "apps/api/app/db/*",
+        "apps/api/app/models/*",
+        "apps/api/app/services/__init__.py",
+        "apps/api/app/services/storage.py",
+        "apps/api/alembic/*",
+        "apps/api/alembic.ini",
+        "apps/api/app/__init__.py",
+        "apps/api/app/settings.py",
+        "apps/api/app/errors.py",
+        "apps/api/app/observability.py"
+      ],
+      "depends_on": []
+    },
+    "operations": {
+      "include": [
+        "scripts/*",
+        "*.command",
+        "docker-compose.yml",
+        ".github/workflows/ci.yml",
+        "apps/api/pyproject.toml",
+        "apps/api/Dockerfile"
+      ],
+      "depends_on": [
+        "web",
+        "meeting-api",
+        "processing",
+        "persistence"
+      ]
+    }
+  },
+  "max_total_calls": 24,
+  "full_refresh_after_updates": 20
+}

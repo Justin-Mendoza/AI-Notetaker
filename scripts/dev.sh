@@ -50,7 +50,7 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 0' INT TERM
 
-docker compose up -d
+docker compose up -d --wait --wait-timeout 120
 .venv/bin/alembic -c apps/api/alembic.ini upgrade head
 
 if [[ "$(sed -n 's/^STT_PROVIDER=//p' .env | tail -1)" == "whisper_local" ]] && ! curl --silent --fail http://127.0.0.1:7777/health >/dev/null; then
@@ -66,6 +66,24 @@ if [[ "$(sed -n 's/^STT_PROVIDER=//p' .env | tail -1)" == "whisper_local" ]] && 
   done
   if ! curl --silent --fail http://127.0.0.1:7777/health >/dev/null; then
     echo "Whisper Local did not become ready." >&2
+    exit 1
+  fi
+fi
+
+if [[ "$(sed -n 's/^STT_PROVIDER=//p' .env | tail -1)" == "cohere_local" ]] && ! curl --silent --fail http://127.0.0.1:7778/health >/dev/null; then
+  ./scripts/start-cohere-local.sh &
+  cohere_pid=$!
+  pids+=("$cohere_pid")
+  for attempt in {1..120}; do
+    if curl --silent --fail http://127.0.0.1:7778/health >/dev/null; then break; fi
+    if ! kill -0 "$cohere_pid" 2>/dev/null; then
+      echo "Cohere Local failed to start. Check that its model has been downloaded." >&2
+      exit 1
+    fi
+    sleep 1
+  done
+  if ! curl --silent --fail http://127.0.0.1:7778/health >/dev/null; then
+    echo "Cohere Local did not become ready. Start it separately to finish model download." >&2
     exit 1
   fi
 fi
