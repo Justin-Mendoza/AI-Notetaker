@@ -149,3 +149,76 @@ def test_summary_is_hidden_until_ready_and_owner_scoped(api_client):
     assert summary_response.json()["summary"]["overview"] == "Planning was discussed."
     identity["owner"] = uuid.uuid4()
     assert client.get(f"/v1/meetings/{meeting_id}/summary").status_code == 404
+
+
+def test_ready_class_notes_regenerate_without_losing_previous_draft(api_client):
+    client, identity = api_client
+    owner = identity["owner"]
+    response = client.post(
+        "/v1/meetings", json={"consent_confirmed": True, "consent_policy_version": "v1"}
+    )
+    meeting_id = uuid.UUID(response.json()["meeting"]["id"])
+    generator, db = db_for_client()
+    meeting = db.get(Meeting, meeting_id)
+    meeting.status = "ready"
+    now = utc_now()
+    db.add(
+        ProcessingJob(
+            meeting_id=meeting_id,
+            kind="process_recording",
+            stage="summarizing",
+            status="completed",
+            cursor=1,
+            attempts=1,
+            max_attempts=3,
+            run_after=now,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    db.add(
+        TranscriptSegment(
+            meeting_id=meeting_id,
+            sequence_no=0,
+            start_ms=0,
+            end_ms=1000,
+            text="The instructor explained the topic.",
+            provider="fake",
+            model="fake-v1",
+            created_at=now,
+        )
+    )
+    db.add(
+        Summary(
+            meeting_id=meeting_id,
+            schema_version="v1",
+            prompt_version="v1",
+            model="fake",
+            content_json={
+                "overview": "The class covered one topic.",
+                "key_points": [],
+                "decisions": [],
+                "action_items": [],
+                "open_questions": [],
+            },
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    db.commit()
+    generator.close()
+
+    identity["owner"] = uuid.uuid4()
+    assert client.post(f"/v1/meetings/{meeting_id}/regenerate").status_code == 404
+    identity["owner"] = owner
+    response = client.post(f"/v1/meetings/{meeting_id}/regenerate")
+    assert response.status_code == 202
+    assert response.json() == {"status": "summarizing"}
+    assert client.get(f"/v1/meetings/{meeting_id}").json()["has_summary"] is True
+    assert client.get(f"/v1/meetings/{meeting_id}/summary").status_code == 200
+    assert client.post(f"/v1/meetings/{meeting_id}/regenerate").status_code == 409
+    generator, db = db_for_client()
+    job = db.query(ProcessingJob).filter_by(meeting_id=meeting_id).one()
+    assert job.status == "pending" and job.stage == "summarizing"
+    assert job.cursor == 1
+    generator.close()

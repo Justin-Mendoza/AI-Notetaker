@@ -189,7 +189,7 @@ def create_meeting(
         raise ApiError(429, "RATE_LIMITED", "Too many meetings were created recently")
     meeting = Meeting(
         owner_id=owner_id,
-        title=body.title or "Untitled meeting",
+        title=body.title or "Untitled class",
         status="draft",
         consent_confirmed_at=now,
         consent_policy_version=body.consent_policy_version,
@@ -243,7 +243,7 @@ def get_meeting(
         "recording": RecordingOut.model_validate(recording) if recording else None,
         "job": JobOut.model_validate(job) if job else None,
         "has_transcript": bool(job and job.stage == "summarizing"),
-        "has_summary": bool(summary and meeting.status == "ready"),
+        "has_summary": bool(summary and meeting.status in {"ready", "summarizing", "failed"}),
     }
 
 
@@ -432,12 +432,64 @@ def get_summary(
     db: DbSession,
 ) -> dict:
     meeting = owned_meeting(db, meeting_id, owner_id)
-    if meeting.status != "ready":
-        raise ApiError(404, "SUMMARY_NOT_READY", "Summary is not ready")
     summary = db.scalar(select(Summary).where(Summary.meeting_id == meeting_id))
-    if summary is None:
+    if summary is None or meeting.status not in {"ready", "summarizing", "failed"}:
         raise ApiError(404, "SUMMARY_NOT_READY", "Summary is not ready")
     return {"summary": SummaryContent.model_validate(summary.content_json)}
+
+
+@router.post("/{meeting_id}/regenerate", status_code=202, response_model=RetryResponse)
+def regenerate_summary(
+    meeting_id: uuid.UUID,
+    owner_id: CurrentUser,
+    db: DbSession,
+) -> dict:
+    meeting = db.scalar(
+        select(Meeting)
+        .where(Meeting.id == meeting_id, Meeting.owner_id == owner_id, Meeting.deleted_at.is_(None))
+        .with_for_update()
+    )
+    if meeting is None:
+        raise ApiError(404, "MEETING_NOT_FOUND", "Meeting not found")
+    if meeting.status != "ready":
+        raise ApiError(409, "INVALID_STATE", "Notes can be regenerated after processing completes")
+    job = db.scalar(
+        select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id).with_for_update()
+    )
+    summary = db.scalar(select(Summary).where(Summary.meeting_id == meeting_id))
+    segment_count = db.scalar(
+        select(func.count(TranscriptSegment.id)).where(TranscriptSegment.meeting_id == meeting_id)
+    )
+    if (
+        job is None
+        or job.stage != "summarizing"
+        or job.status != "completed"
+        or summary is None
+        or not job.cursor
+        or segment_count != job.cursor
+    ):
+        raise ApiError(409, "TRANSCRIPT_INCOMPLETE", "The saved transcript is incomplete")
+    now = utc_now()
+    window_at = job.manual_retry_window_at
+    if window_at and window_at.tzinfo is None:
+        window_at = window_at.replace(tzinfo=UTC)
+    if window_at is None or window_at < now - timedelta(hours=1):
+        job.manual_retry_window_at = now
+        job.manual_retry_count = 0
+    if job.manual_retry_count >= settings.max_manual_retries_per_hour:
+        raise ApiError(429, "RATE_LIMITED", "Wait before regenerating notes again")
+    job.manual_retry_count += 1
+    job.status = "pending"
+    job.attempts = 0
+    job.run_after = now
+    job.lease_until = None
+    job.locked_by = None
+    job.last_error_code = None
+    job.updated_at = now
+    meeting.status = "summarizing"
+    meeting.updated_at = now
+    db.commit()
+    return {"status": "summarizing"}
 
 
 @router.post("/{meeting_id}/retry", status_code=202, response_model=RetryResponse)

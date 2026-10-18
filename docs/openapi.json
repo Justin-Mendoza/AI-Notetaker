@@ -479,6 +479,13 @@
             "minLength": 1,
             "title": "Overview",
             "type": "string"
+          },
+          "topics": {
+            "items": {
+              "$ref": "#/components/schemas/TopicNote"
+            },
+            "title": "Topics",
+            "type": "array"
           }
         },
         "required": [
@@ -501,6 +508,44 @@
           "summary"
         ],
         "title": "SummaryResponse",
+        "type": "object"
+      },
+      "TopicNote": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_segment_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Evidence Segment Ids",
+            "type": "array"
+          },
+          "heading": {
+            "minLength": 1,
+            "title": "Heading",
+            "type": "string"
+          },
+          "key_details": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Key Details",
+            "type": "array"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "heading",
+          "summary",
+          "key_details",
+          "evidence_segment_ids"
+        ],
+        "title": "TopicNote",
         "type": "object"
       },
       "TranscriptResponse": {
@@ -587,7 +632,7 @@
     }
   },
   "info": {
-    "title": "Meeting Notes API",
+    "title": "Class Notes API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
@@ -925,6 +970,49 @@
           }
         },
         "summary": "Upload Recording",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/regenerate": {
+      "post": {
+        "operationId": "regenerate_summary_v1_meetings__meeting_id__regenerate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Regenerate Summary",
         "tags": [
           "meetings"
         ]

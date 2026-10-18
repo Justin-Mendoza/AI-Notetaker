@@ -1,4 +1,4 @@
-# Meeting Notes API
+# Class Notes API
 
 All `/v1` routes are for the single owner on this Mac. The API accepts loopback clients and local Host values only. Browser requests use the configured web origin; writes require its `Origin` header. Rejected remote or cross-site requests receive `403`. Errors use `{ "error": { "code", "message", "request_id" } }`. Responses carry `X-Request-ID`.
 
@@ -10,7 +10,8 @@ All `/v1` routes are for the single owner on this Mac. The API accepts loopback 
 | `PATCH /v1/meetings/{id}` | Rename an owned meeting. |
 | `POST /v1/meetings/{id}/recording` | Multipart `file` and `duration_ms`, plus `Idempotency-Key`; validates and stores one private recording, then queues a job. |
 | `GET /v1/meetings/{id}/transcript` | Ordered approximate chunk ranges and full text once transcription completes. |
-| `GET /v1/meetings/{id}/summary` | Validated structured draft, available only when ready. |
+| `GET /v1/meetings/{id}/summary` | Validated study notes. A previous draft remains available while it is being regenerated or if regeneration fails. |
+| `POST /v1/meetings/{id}/regenerate` | Rebuild class notes from a complete saved transcript without transcribing audio again. Limited to ready recordings and rate-limited. |
 | `POST /v1/meetings/{id}/retry` | Requeue a failed transient job without duplicating saved segments. |
 | `DELETE /v1/meetings/{id}` | Deny reads immediately and queue permanent private data cleanup. |
 | `GET /healthz` | Process health. |
