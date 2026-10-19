@@ -1,8 +1,8 @@
-# Afterclass — your class study assistant
+# Oatmeal AI — your class study assistant
 
-**Stay with the lesson. Come back ready to study.** Afterclass is a personal study assistant for lectures you choose to record. It creates a transcript as class goes on, then turns the completed transcript into organized notes you can revisit: topics explained, important details, quick review points, assignments, and questions to follow up on.
+**Stay with the lesson. Come back ready to study.** Oatmeal AI is a personal study assistant for lectures you choose to record. It creates a transcript as class goes on, then turns the completed transcript into organized notes you can revisit: topics explained, important details, quick review points, assignments, and questions to follow up on.
 
-Afterclass runs locally on one Mac. Audio is transcribed on your Mac with Cohere; after recording, the transcript is sent to DeepSeek through Kyma to draft study notes. Notes are a starting point for review, so check them against the transcript. See [how audio and transcripts are processed](docs/provider-options.md).
+Oatmeal AI runs locally on one Mac. Audio is transcribed on your Mac with Cohere; after recording, the transcript is sent to DeepSeek through Kyma to draft study notes. Notes are a starting point for review, so check them against the transcript. See [how audio and transcripts are processed](docs/provider-options.md).
 
 ## How it helps you study
 
@@ -12,7 +12,7 @@ Afterclass runs locally on one Mac. Audio is transcribed on your Mac with Cohere
 - **Return to the source:** use approximate time links in the notes to find the related transcript section.
 - **Keep your materials:** your class recordings, transcripts, and notes stay in your local app; copy or download notes and transcripts for your own study routine.
 
-Afterclass is a personal, single-user Mac app, not a hosted service or a substitute for attending class. Recording is opt-in; follow your instructor’s guidance and your school’s rules. Processing classroom speech with AI may require permission.
+Oatmeal AI is a personal, single-user Mac app, not a hosted service or a substitute for attending class. Recording is opt-in; follow your instructor’s guidance and your school’s rules. Processing classroom speech with AI may require permission.
 
 ## Requirements
 
@@ -21,7 +21,7 @@ Afterclass is a personal, single-user Mac app, not a hosted service or a substit
 
 ## Local startup
 
-For this Mac, double-click [Start Class Notes.command](Start%20Class%20Notes.command) in Finder. The launcher starts Docker Desktop if needed, starts Afterclass’s local services, and opens the app. Keep its Terminal window open while using Afterclass. Double-click [Stop Class Notes.command](Stop%20Class%20Notes.command) to stop the services and PostgreSQL. Your saved classes remain in the named Docker volume; do not use `docker compose down -v` unless you intend to erase that database.
+For this Mac, double-click the existing [Start Class Notes.command](Start%20Class%20Notes.command) launcher in Finder; the launcher file keeps its original name. It starts Docker Desktop if needed, starts Oatmeal AI’s local services, and opens the app. Keep its Terminal window open while using Oatmeal AI. Double-click [Stop Class Notes.command](Stop%20Class%20Notes.command) to stop the services and PostgreSQL. Your saved classes remain in the named Docker volume; do not use `docker compose down -v` unless you intend to erase that database.
 
 1. Copy `.env.example` to `.env`. Set matching `POSTGRES_PASSWORD`/`DATABASE_URL` values and `KYMA_API_KEY`. Keep provider credentials out of `apps/web/.env.local`. Recordings are stored under the ignored `.data/recordings` directory with owner-only file permissions; set `LOCAL_RECORDING_DIR` to an absolute path if you want them elsewhere.
 2. Run `docker compose up -d` to start PostgreSQL on loopback.
@@ -34,7 +34,7 @@ Once dependencies and env files are set, `bash scripts/dev.sh` starts PostgreSQL
 
 The worker runs cleanup at startup and hourly to purge expired raw audio, remove deleted meetings and abandoned drafts, and sweep old recording files. You can also run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.cleanup` manually. Local operation and smoke-test steps are in [deploy/README.md](deploy/README.md).
 
-To make a study set, choose **Record a class**, name the lesson, review the consent reminder, and start recording. Afterclass supports up to two hours per recording (100 MB maximum). It saves audio in your browser when storage is available and transcribes complete one-minute sections on your Mac. Transcription appears with a delay; it is not word-by-word streaming. After you stop, the app fills any missing sections and sends the completed transcript to DeepSeek through Kyma to draft study notes. Each topic includes an explanation, key details, and approximate links back to the transcript. You can copy or download notes as Markdown and download the transcript as text. Existing transcripts can generate a fresh set of notes.
+To make a study set, choose **Record a class**, name the lesson, review the consent reminder, and start recording. Oatmeal AI supports up to two hours per recording (100 MB maximum). It saves audio in your browser when storage is available and transcribes complete one-minute sections on your Mac. Transcription appears with a delay; it is not word-by-word streaming. After you stop, the app fills any missing sections and sends the completed transcript to DeepSeek through Kyma to draft study notes. Each topic includes an explanation, key details, and approximate links back to the transcript. You can copy or download notes as Markdown and download the transcript as text. Existing transcripts can generate a fresh set of notes.
 
 Keep the Mac awake, lid open, and plugged in during class. If the tab closes or crashes, reopen **Record a class** in the same browser to recover audio already saved there; recording does not continue during an interruption. Avoid private browsing, which may not retain backups. If note generation fails, your transcript and previous notes remain available to retry.
 

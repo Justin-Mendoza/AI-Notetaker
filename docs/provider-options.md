@@ -25,7 +25,7 @@ KYMA_BASE_URL=https://kymaapi.com/v1
 KYMA_SUMMARY_MODEL=deepseek-v4.1-flash
 ```
 
-Keep `KYMA_API_KEY` server-side in `.env`. A GitHub Actions secret is separate from the app's local credentials. The Start Class Notes launcher starts the database, Cohere service, API, worker, and web app. The health endpoint returns the loaded model at `http://127.0.0.1:7778/health`.
+Keep `KYMA_API_KEY` server-side in `.env`. A GitHub Actions secret is separate from the app's local credentials. The existing Start Class Notes launcher (filename retained) starts Oatmeal AI’s database, Cohere service, API, worker, and web app. The health endpoint returns the loaded model at `http://127.0.0.1:7778/health`.
 
 During class, complete one-minute transcript windows are saved and shown in the recorder. The browser sends a growing audio prefix to the local API so container headers are preserved; the API extracts only the next complete minute for Cohere. These requests stay on loopback. They are serialized and time-limited; a live failure does not stop recording. After Stop, the worker reuses saved minutes and fills gaps and the last partial minute from the full recording. Older recordings use ten-minute recovery chunks. Cohere divides audio into short inference windows. DeepSeek receives the complete transcript after recording ends. A two-hour class is supported, subject to the 100 MB upload limit. Capture requests 64 kbps audio (about 58 MB for two hours, excluding container overhead; browsers may choose a different bitrate).
 

@@ -1,4 +1,4 @@
-# Class Notes API
+# Oatmeal AI API
 
 All `/v1` routes are for the single owner on this Mac. The API accepts loopback clients and local Host values only. Browser requests use the configured web origin; writes require its `Origin` header. Rejected remote or cross-site requests receive `403`. Errors use `{ "error": { "code", "message", "request_id" } }`. Responses carry `X-Request-ID`.
 

@@ -56,11 +56,11 @@ export default function Home() {
         <div className="hero-copy">
           <p className="eyebrow"><span className="small-star">✳</span> YOUR CLASS STUDY ASSISTANT</p>
           <h1>Stay with the lesson.<br /><span>Study it on your time.</span></h1>
-          <p className="hero-description">Follow the explanation instead of racing to write every word. Afterclass keeps a transcript of the class you choose to record, then helps you review topics, details, and assignments afterward.</p>
+          <p className="hero-description">Follow the explanation instead of racing to write every word. Oatmeal AI keeps a transcript of the class you choose to record, then helps you review topics, details, and assignments afterward.</p>
           <Link href="/meetings/new" className="button-primary"><Icon name="mic" size={18} />Record a class<Icon name="arrow" size={18} /></Link>
           <p className="hero-footnote"><Icon name="clock" size={14} /> Up to 2 hours per class · Audio transcribed on your Mac</p>
         </div>
-        <aside className="lesson-card" aria-label="How Afterclass works">
+        <aside className="lesson-card" aria-label="How Oatmeal AI works">
           <div className="lesson-card-top"><span className="eyebrow">LISTEN NOW. REVIEW LATER.</span><span className="paper-star" aria-hidden="true">✳</span></div>
           <div className="lesson-illustration" aria-hidden="true"><div className="audio-orb"><Icon name="mic" size={28} /></div><div className="illustration-wave">{[9,18,28,15,38,48,26,40,20,32,14,22].map((height, i) => <i key={i} style={{ height }} />)}</div><span className="note-sticker"><Icon name="check" size={17} />Keep the important bits</span></div>
           <h2>From class<br />to clear notes.</h2>

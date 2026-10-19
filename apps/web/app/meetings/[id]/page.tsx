@@ -183,7 +183,7 @@ export default function MeetingDetail() {
     const url = URL.createObjectURL(new Blob([notesMarkdown()], { type: "text/markdown" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${detail.meeting.title.replace(/[^a-z0-9-_ ]/gi, "").slice(0, 80) || "afterclass-study-guide"}.md`;
+    link.download = `${detail.meeting.title.replace(/[^a-z0-9-_ ]/gi, "").slice(0, 80) || "oatmeal-ai-study-guide"}.md`;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }

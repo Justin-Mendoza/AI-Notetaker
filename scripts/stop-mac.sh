@@ -19,17 +19,17 @@ if [[ -f "$pid_file" ]]; then
   if [[ "${dev_pid:-}" =~ ^[0-9]+$ ]] && kill -0 "$dev_pid" 2>/dev/null; then
     command_line="$(ps -p "$dev_pid" -o command= 2>/dev/null || true)"
     if [[ "$command_line" != *"scripts/dev.sh"* ]]; then
-      echo "The saved process ID no longer belongs to Class Notes. Check running apps before stopping Docker." >&2
+      echo "The saved process ID no longer belongs to Oatmeal AI. Check running apps before stopping Docker." >&2
       exit 1
     fi
-    echo "Stopping Class Notes..."
+    echo "Stopping Oatmeal AI..."
     stop_tree "$dev_pid"
     for _ in {1..30}; do
       if ! kill -0 "$dev_pid" 2>/dev/null; then break; fi
       sleep 1
     done
     if kill -0 "$dev_pid" 2>/dev/null; then
-      echo "Class Notes did not stop cleanly. Check the Start window." >&2
+      echo "Oatmeal AI did not stop cleanly. Check the Start window." >&2
       exit 1
     fi
   fi
@@ -41,7 +41,7 @@ if [[ -f "$pid_file" ]]; then
   fi
 elif curl --silent --fail http://127.0.0.1:3000 >/dev/null \
   || curl --silent --fail http://127.0.0.1:8000/readyz >/dev/null; then
-  echo "Class Notes was started outside the launcher. Stop it in its original terminal with Ctrl+C." >&2
+  echo "Oatmeal AI was started outside the launcher. Stop it in its original terminal with Ctrl+C." >&2
   exit 1
 fi
 
@@ -65,4 +65,4 @@ done < <(lsof -tiTCP:7778 -sTCP:LISTEN 2>/dev/null || true)
 if docker info >/dev/null 2>&1; then
   docker compose down
 fi
-echo "Class Notes is stopped. Saved classes remain in the Docker volume."
+echo "Oatmeal AI is stopped. Saved classes remain in the Docker volume."
