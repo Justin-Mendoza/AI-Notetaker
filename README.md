@@ -1,8 +1,18 @@
-# Class Notes
+# Afterclass — your class study assistant
 
-Private, single-owner class notes app for one Mac. The app records microphone audio after explicit consent, uploads it to private local storage, processes it in a separate worker, and saves a transcript and reviewable study notes.
+**Stay with the lesson. Come back ready to study.** Afterclass is a personal study assistant for lectures you choose to record. It creates a transcript as class goes on, then turns the completed transcript into organized notes you can revisit: topics explained, important details, quick review points, assignments, and questions to follow up on.
 
-The supplied `.env.example` selects [local Cohere Transcribe on MLX and DeepSeek v4.1 Flash through Kyma for summaries](docs/provider-options.md). Model and provider settings remain configurable. Audio stays on this Mac for transcription; the transcript goes to Kyma for summaries.
+Afterclass runs locally on one Mac. Audio is transcribed on your Mac with Cohere; after recording, the transcript is sent to DeepSeek through Kyma to draft study notes. Notes are a starting point for review, so check them against the transcript. See [how audio and transcripts are processed](docs/provider-options.md).
+
+## How it helps you study
+
+- **Stay present:** record a class you choose to capture instead of trying to write down every sentence.
+- **Follow along:** see transcript sections appear during class, with a short delay.
+- **Review the lesson:** get topic explanations, key details, quick review points, assignments, and questions after you stop.
+- **Return to the source:** use approximate time links in the notes to find the related transcript section.
+- **Keep your materials:** your class recordings, transcripts, and notes stay in your local app; copy or download notes and transcripts for your own study routine.
+
+Afterclass is a personal, single-user Mac app, not a hosted service or a substitute for attending class. Recording is opt-in; follow your instructor’s guidance and your school’s rules. Processing classroom speech with AI may require permission.
 
 ## Requirements
 
@@ -11,7 +21,7 @@ The supplied `.env.example` selects [local Cohere Transcribe on MLX and DeepSeek
 
 ## Local startup
 
-For this Mac, double-click [Start Class Notes.command](Start%20Class%20Notes.command) in Finder. It starts Docker Desktop if needed, starts the local services, and opens the web app. Keep its Terminal window open while using the app. Double-click [Stop Class Notes.command](Stop%20Class%20Notes.command) to stop the services and PostgreSQL. Your saved classes remain in the named Docker volume; do not use `docker compose down -v` unless you intend to erase that database.
+For this Mac, double-click [Start Class Notes.command](Start%20Class%20Notes.command) in Finder. The launcher starts Docker Desktop if needed, starts Afterclass’s local services, and opens the app. Keep its Terminal window open while using Afterclass. Double-click [Stop Class Notes.command](Stop%20Class%20Notes.command) to stop the services and PostgreSQL. Your saved classes remain in the named Docker volume; do not use `docker compose down -v` unless you intend to erase that database.
 
 1. Copy `.env.example` to `.env`. Set matching `POSTGRES_PASSWORD`/`DATABASE_URL` values and `KYMA_API_KEY`. Keep provider credentials out of `apps/web/.env.local`. Recordings are stored under the ignored `.data/recordings` directory with owner-only file permissions; set `LOCAL_RECORDING_DIR` to an absolute path if you want them elsewhere.
 2. Run `docker compose up -d` to start PostgreSQL on loopback.
@@ -24,7 +34,9 @@ Once dependencies and env files are set, `bash scripts/dev.sh` starts PostgreSQL
 
 The worker runs cleanup at startup and hourly to purge expired raw audio, remove deleted meetings and abandoned drafts, and sweep old recording files. You can also run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.cleanup` manually. Local operation and smoke-test steps are in [deploy/README.md](deploy/README.md).
 
-From the library, select **Record a class**, confirm the consent reminder, and start recording. Recordings can run for up to two hours (100 MB maximum). The browser requests 64 kbps audio, sends local snapshots for near-live transcription, uploads the full recording after Stop, and saves ordered audio chunks to browser storage while recording when storage is available. If the tab closes or crashes, reopen **Record a class** in the same browser and origin to recover, download, or upload the captured audio. Recovery does not continue recording during an interruption. Keep the Mac awake, lid open, and plugged in; avoid private browsing, which may not retain backups. During recording, the app transcribes complete one-minute windows locally and shows the saved transcript. After Stop, it uploads the full recording, fills any missing windows and the final partial minute, then automatically sends the completed transcript to DeepSeek through Kyma for schema-validated study notes. Near-live transcription has a delay; it is not word-by-word streaming. Each topic has a heading, a short explanation, key details, and links to approximate transcript times. The page also includes a quick review, explicit assignments, and questions to revisit. You can copy or download the notes as Markdown and download the transcript as text. Existing recordings can regenerate notes from their saved transcripts. If summarization fails, the transcript and any previous notes remain available for retry.
+To make a study set, choose **Record a class**, name the lesson, review the consent reminder, and start recording. Afterclass supports up to two hours per recording (100 MB maximum). It saves audio in your browser when storage is available and transcribes complete one-minute sections on your Mac. Transcription appears with a delay; it is not word-by-word streaming. After you stop, the app fills any missing sections and sends the completed transcript to DeepSeek through Kyma to draft study notes. Each topic includes an explanation, key details, and approximate links back to the transcript. You can copy or download notes as Markdown and download the transcript as text. Existing transcripts can generate a fresh set of notes.
+
+Keep the Mac awake, lid open, and plugged in during class. If the tab closes or crashes, reopen **Record a class** in the same browser to recover audio already saved there; recording does not continue during an interruption. Avoid private browsing, which may not retain backups. If note generation fails, your transcript and previous notes remain available to retry.
 
 For non-sensitive local audio, run `bash scripts/generate_fixture.sh 120 /private/tmp/meeting-short.mp3`. Use `7200` for a two-hour file above the speech API's per-file limit. The worker submits only compressed chunks below 20 MB.
 
@@ -42,7 +54,7 @@ After changing API response schemas, run `.venv/bin/python scripts/export_openap
 cd apps/web && npm run lint && npm run typecheck && npm run build
 ```
 
-The API tests use temporary SQLite databases and test local-only access rules. CI runs the migration against PostgreSQL. A real-provider smoke test still needs local storage, FFmpeg, Whisper Local, and a Kyma key.
+The API tests use temporary SQLite databases and test local-only access rules. CI runs the migration against PostgreSQL. Before relying on it for class, make a short recording with your actual microphone and confirm the transcript and notes are usable. Synthetic tests do not establish classroom accuracy.
 
 ## Layout
 
@@ -53,4 +65,4 @@ The API tests use temporary SQLite databases and test local-only access rules. C
 
 ## Before a long class
 
-Start the app before leaving, open `http://localhost:3000`, and make a short test with the microphone you will actually use. Check that the transcript contains what you said and that study topics appear. Place the microphone where the professor is clearly audible. Keep the Mac plugged in, awake, and its lid open; leave the recording tab and startup Terminal window open. The limit is two hours or 100 MB. Stop and wait for upload to finish before closing the tab. Processing continues locally afterward; Kyma needs internet for notes, and **Retry** can resume failed generation without retranscribing completed segments. Download the notes as Markdown for study and the transcript as text if desired.
+Before class, open `http://localhost:3000` and make a short test with the microphone you plan to use. Check that the transcript captures speech clearly and that the notes help you review it. Place the microphone where your instructor is clearly audible. Keep the Mac plugged in and awake, with its lid open; leave the recording tab and startup Terminal window open. The limit is two hours or 100 MB. After class, wait for upload to finish before closing the tab. Transcription and note generation continue afterward; Kyma needs internet to prepare notes. **Retry** resumes failed note generation without retranscribing completed sections. Download the notes or transcript if you want to use them in your own study workflow.
