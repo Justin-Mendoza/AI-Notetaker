@@ -1,0 +1,84 @@
+name: Update repository maps
+
+on:
+  push:
+    branches-ignore:
+      - repo-map
+    paths-ignore:
+      - '.repo-map/SETUP.md'
+  workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: Reanalyze all subsystem maps
+        type: boolean
+        default: false
+
+# Publishing is limited by the script to the dedicated map branch.
+permissions:
+  contents: write
+
+concurrency:
+  group: repo-map-state
+  cancel-in-progress: false
+
+jobs:
+  update:
+    # Manual runs also use the default branch to avoid overwriting state from feature branches.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      REPO_MAP_SOURCE_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Set map state path
+        run: printf 'MAP_STATE=%s/repo-map-state\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Check out source history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install diagram tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends graphviz
+          python -m pip install -r .repo-map/requirements.txt
+      - name: Read saved map branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .repo-map/state.py prepare --repo . --state "$MAP_STATE"
+      - name: Update affected subsystem maps
+        env:
+          LLM_API_KEY: ${{ secrets.KYMA_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.kymaapi.com/v1' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'deepseek-v4.1-flash' }}
+          FULL_REFRESH: ${{ inputs.full_refresh || false }}
+        run: |
+          args=()
+          if [ "$FULL_REFRESH" = "true" ]; then args+=(--full); fi
+          python .repo-map/incremental.py --repo . --state "$MAP_STATE" "${args[@]}"
+      - name: Publish updated maps
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .repo-map/state.py publish --repo . --state "$MAP_STATE"
+      - name: Upload downloadable maps
+        id: artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: repo-map-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/repo-map-state/README.md
+            ${{ runner.temp }}/repo-map-state/manifest.json
+            ${{ runner.temp }}/repo-map-state/update.json
+            ${{ runner.temp }}/repo-map-state/maps/
+            ${{ runner.temp }}/repo-map-state/overview/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Link maps in run summary
+        env:
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+        run: |
+          printf '## Repository maps\n\n[Browse maps on GitHub](%s/%s/tree/repo-map)\n\n[Download PDFs, PNGs, and Mermaid](%s)\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"

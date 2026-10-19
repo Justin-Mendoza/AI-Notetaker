@@ -22,9 +22,11 @@ from app.models.meeting import Meeting, utc_now
 from app.models.recording import Recording
 from app.models.summary import Summary
 from app.models.transcript import TranscriptSegment
+from app.services.live import LIVE_CHUNK_MS, extract_live_window
 from app.services.media import MAX_DURATION_MS, MAX_FILE_BYTES, inspect_audio
 from app.services.storage import Storage, get_storage
 from app.services.summarization import SummaryContent
+from app.services.transcription import CohereLocalTranscriber, TranscriptionError
 from app.settings import settings
 
 router = APIRouter(prefix="/v1/meetings", tags=["meetings"])
@@ -262,6 +264,113 @@ def rename_meeting(
     return {"meeting": MeetingOut.model_validate(meeting)}
 
 
+@router.post("/{meeting_id}/live-transcript", response_model=SegmentOut)
+def transcribe_live_window(
+    meeting_id: uuid.UUID,
+    owner_id: CurrentUser,
+    db: DbSession,
+    file: Annotated[UploadFile, File()],
+    sequence_no: Annotated[int, Form(ge=0, lt=120)],
+    idempotency_key: Annotated[uuid.UUID, Header(alias="Idempotency-Key")],
+) -> dict:
+    meeting = owned_meeting(db, meeting_id, owner_id)
+    if meeting.status != "draft":
+        raise ApiError(409, "INVALID_STATE", "Live capture has ended")
+    if meeting.upload_key and meeting.upload_key != idempotency_key:
+        raise ApiError(
+            409, "INVALID_STATE", "This recording belongs to a different capture session"
+        )
+    existing = db.scalar(
+        select(TranscriptSegment).where(
+            TranscriptSegment.meeting_id == meeting_id,
+            TranscriptSegment.sequence_no == sequence_no,
+        )
+    )
+    if existing:
+        return SegmentOut.model_validate(existing).model_dump()
+    if settings.stt_provider != "cohere_local":
+        raise ApiError(503, "LOCAL_STT_UNAVAILABLE", "Local live transcription is unavailable")
+    meeting.upload_key = idempotency_key
+    meeting.updated_at = utc_now()
+    db.commit()
+    # Never hold the database transaction while decoding or running inference.
+    with tempfile.TemporaryDirectory(prefix="meeting-live-") as directory_text:
+        directory = Path(directory_text)
+        source = directory / "prefix.audio"
+        size = 0
+        with source.open("wb") as target:
+            while chunk := file.file.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_FILE_BYTES:
+                    raise ApiError(413, "FILE_LIMIT", "Recordings must be 100 MB or smaller")
+                target.write(chunk)
+        if not size:
+            raise ApiError(415, "INVALID_MEDIA", "The recording is empty")
+        window = extract_live_window(source, file.content_type or "", sequence_no, directory)
+        try:
+            transcriber = CohereLocalTranscriber()
+            transcriber.client = transcriber.client.with_options(timeout=90)
+            text = transcriber.transcribe(window)
+        except TranscriptionError as exc:
+            raise ApiError(
+                503, exc.code, "Live transcription paused; saved audio can catch up later"
+            ) from exc
+    db.expire_all()
+    meeting = db.scalar(
+        select(Meeting)
+        .where(
+            Meeting.id == meeting_id,
+            Meeting.owner_id == owner_id,
+            Meeting.deleted_at.is_(None),
+        )
+        .with_for_update()
+    )
+    if meeting is None:
+        raise ApiError(404, "MEETING_NOT_FOUND", "Meeting not found")
+    if meeting.status != "draft" or meeting.upload_key != idempotency_key:
+        raise ApiError(409, "INVALID_STATE", "Live capture has ended")
+    existing = db.scalar(
+        select(TranscriptSegment).where(
+            TranscriptSegment.meeting_id == meeting_id,
+            TranscriptSegment.sequence_no == sequence_no,
+        )
+    )
+    if not existing:
+        existing = TranscriptSegment(
+            meeting_id=meeting_id,
+            sequence_no=sequence_no,
+            start_ms=sequence_no * LIVE_CHUNK_MS,
+            end_ms=(sequence_no + 1) * LIVE_CHUNK_MS,
+            text=text,
+            provider=transcriber.provider,
+            model=transcriber.model,
+            created_at=utc_now(),
+        )
+        db.add(existing)
+    meeting.updated_at = utc_now()
+    db.commit()
+    db.refresh(existing)
+    return SegmentOut.model_validate(existing).model_dump()
+
+
+@router.get("/{meeting_id}/live-transcript", response_model=TranscriptResponse)
+def get_live_transcript(meeting_id: uuid.UUID, owner_id: CurrentUser, db: DbSession) -> dict:
+    owned_meeting(db, meeting_id, owner_id)
+    segments = list(
+        db.scalars(
+            select(TranscriptSegment)
+            .where(
+                TranscriptSegment.meeting_id == meeting_id,
+            )
+            .order_by(TranscriptSegment.sequence_no)
+        )
+    )
+    return {
+        "segments": [SegmentOut.model_validate(segment) for segment in segments],
+        "full_text": "\n".join(segment.text for segment in segments if segment.text),
+    }
+
+
 @router.post("/{meeting_id}/recording", status_code=202, response_model=UploadResponse)
 def upload_recording(
     meeting_id: uuid.UUID,
@@ -271,6 +380,7 @@ def upload_recording(
     file: Annotated[UploadFile, File()],
     duration_ms: Annotated[int, Form(gt=0, le=MAX_DURATION_MS)],
     idempotency_key: Annotated[uuid.UUID, Header(alias="Idempotency-Key")],
+    live_transcription: Annotated[bool, Form()] = False,
 ) -> dict:
     meeting = owned_meeting(db, meeting_id, owner_id)
     prior = db.scalar(select(Recording).where(Recording.meeting_id == meeting_id))
@@ -355,7 +465,14 @@ def upload_recording(
         db.add(
             ProcessingJob(
                 meeting_id=meeting_id,
-                kind="process_recording",
+                kind="process_live_recording"
+                if live_transcription
+                or db.scalar(
+                    select(TranscriptSegment.id)
+                    .where(TranscriptSegment.meeting_id == meeting_id)
+                    .limit(1)
+                )
+                else "process_recording",
                 status="pending",
                 attempts=0,
                 max_attempts=3,
@@ -365,9 +482,17 @@ def upload_recording(
             )
         )
         locked.status = "queued"
-        locked.duration_ms = actual_duration_ms
+        live_end_ms = (
+            db.scalar(
+                select(func.max(TranscriptSegment.end_ms)).where(
+                    TranscriptSegment.meeting_id == meeting_id
+                )
+            )
+            or 0
+        )
+        locked.duration_ms = max(actual_duration_ms, live_end_ms)
         locked.ended_at = now
-        locked.started_at = now - timedelta(milliseconds=actual_duration_ms)
+        locked.started_at = now - timedelta(milliseconds=locked.duration_ms)
         locked.updated_at = now
         db.commit()
         object_saved = False

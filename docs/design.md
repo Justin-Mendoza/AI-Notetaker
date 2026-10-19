@@ -19,7 +19,7 @@ Build a private web app for in-person meetings. The signed-in user explicitly st
 | Capture | Microphone only in a visible tab, after explicit Start. |
 | Processing | After Stop and successful upload. |
 | Browsers | Current desktop Chrome, Edge, Safari; feature-detect formats. Mobile best effort. |
-| Limits | 90 minutes and 100 MB per meeting; display before starting. |
+| Limits | 120 minutes and 100 MB per meeting; display before starting. |
 | Language | Auto-detect speech; English UI. |
 | Accounts | Private managed-auth accounts; no public links. |
 | Timing | Approximate time ranges per transcript chunk, no word-level timing. |
@@ -136,7 +136,7 @@ Save the object before transactionally updating the meeting and inserting a job.
 
 1. Sign in: email auth, brief privacy statement.
 2. Library: new meeting, title/date/duration/status, empty state, confirmed delete.
-3. Record: title, consent reminder and confirmation, mic state, red indicator, timer, Stop, 90-minute notice, upload progress and navigation warning.
+3. Record: title, consent reminder and confirmation, mic state, red indicator, timer, Stop, 120-minute notice, upload progress and navigation warning.
 4. Detail: status while processing; overview, key points, decisions, action items, open questions; full transcript with approximate ranges; copy/download; retry; “AI draft — review before sharing.”
 5. Actionable errors for no/denied mic, unsupported format, interruption, upload/network failure, processing failure, deletion.
 

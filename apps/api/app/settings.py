@@ -18,11 +18,15 @@ class Settings:
     stt_model: str = os.getenv("STT_MODEL", "gpt-4o-transcribe")
     whisper_local_base_url: str = os.getenv("WHISPER_LOCAL_BASE_URL", "http://127.0.0.1:7777/v1")
     whisper_local_model_label: str = os.getenv("WHISPER_LOCAL_MODEL_LABEL", "base")
+    cohere_local_base_url: str = os.getenv("COHERE_LOCAL_BASE_URL", "http://127.0.0.1:7778/v1")
+    cohere_local_model: str = os.getenv(
+        "COHERE_LOCAL_MODEL", "mlx-community/cohere-transcribe-03-2026-mlx-8bit"
+    )
     summary_provider: str = os.getenv("SUMMARY_PROVIDER", "openai")
     summary_model: str = os.getenv("SUMMARY_MODEL", "gpt-4o-mini")
     kyma_api_key: str = os.getenv("KYMA_API_KEY", "")
     kyma_base_url: str = os.getenv("KYMA_BASE_URL", "https://kymaapi.com/v1")
-    kyma_summary_model: str = os.getenv("KYMA_SUMMARY_MODEL", "qwen3.7-flash")
+    kyma_summary_model: str = os.getenv("KYMA_SUMMARY_MODEL", "deepseek-v4.1-flash")
     raw_audio_retention_hours: int = int(os.getenv("RAW_AUDIO_RETENTION_HOURS", "24"))
     failed_audio_retention_days: int = int(os.getenv("FAILED_AUDIO_RETENTION_DAYS", "7"))
     max_meetings_per_hour: int = int(os.getenv("MAX_MEETINGS_PER_HOUR", "20"))

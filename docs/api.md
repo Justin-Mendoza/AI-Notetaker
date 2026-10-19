@@ -17,4 +17,10 @@ All `/v1` routes are for the single owner on this Mac. The API accepts loopback 
 | `GET /healthz` | Process health. |
 | `GET /readyz` | Database readiness. |
 
-Upload requests are bounded at 101 MB including multipart framing; audio itself is limited to 100 MB and 90 minutes. Per-owner meeting and upload rates and per-job manual retries can be configured through the server environment. The private `/internal/metrics` endpoint requires `METRICS_TOKEN` and reports job counts and overdue raw audio.
+Upload requests are bounded at 101 MB including multipart framing; audio itself is limited to 100 MB and 120 minutes. Per-owner meeting and upload rates and per-job manual retries can be configured through the server environment. The private `/internal/metrics` endpoint requires `METRICS_TOKEN` and reports job counts and overdue raw audio.
+
+## Near-live transcription
+
+`POST /v1/meetings/{id}/live-transcript` accepts a cumulative audio `file`, zero-based `sequence_no` (0–119), and the capture session's `Idempotency-Key`. It extracts and locally transcribes one complete 60-second window. It returns a saved transcript segment; repeated confirmed windows reuse the same segment. Only an owned draft accepts live windows. Incomplete windows return 409 and remain available for a later snapshot or final catch-up. The same 101 MB multipart body bound applies.
+
+`GET /v1/meetings/{id}/live-transcript` returns saved partial segments for an owned recording. Upload the full recording with `live_transcription=true` to finalize; the worker fills missing one-minute windows and the last partial window before summarization. Saved live segments also select this mode automatically. The existing `/transcript` route continues to expose the completed transcript only.

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { components } from "@/lib/api-types";
 import { apiUrl } from "@/lib/api";
+import { clearRecordingBackup } from "@/lib/recording-backup";
 
 type Detail = components["schemas"]["MeetingDetailResponse"];
 type Transcript = components["schemas"]["TranscriptResponse"];
@@ -118,6 +119,7 @@ export default function MeetingDetail() {
         method: "DELETE",
       });
       if (response.status !== 204) throw new Error();
+      await clearRecordingBackup(id).catch(() => {});
       router.push("/");
     } catch {
       setMessage("Could not delete this meeting. Check your connection and try again.");
@@ -199,8 +201,9 @@ export default function MeetingDetail() {
     : "";
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
-      <Link className="text-teal-800 underline" href="/">← Class library</Link>
+    <main className="notes-page mx-auto px-6 py-10">
+      <Link className="back-link" href="/">← Back to your library</Link>
+      <div className="page-heading"><p className="eyebrow">THE LESSON, A LITTLE CLEARER</p><h1>Your space to understand.</h1></div>
       {!detail ? <p className="mt-8">Loading recording…</p> : (
         <>
           <form className="mt-8 flex flex-wrap items-end gap-3" onSubmit={saveTitle}>

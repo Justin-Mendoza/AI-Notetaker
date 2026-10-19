@@ -1,0 +1,6 @@
+mlx-speech==0.5.4
+mlx-audio==0.5.9
+fastapi==0.146.0
+uvicorn==0.54.0
+python-multipart==0.0.32
+sentencepiece==0.2.2

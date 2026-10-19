@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { components } from "@/lib/api-types";
 import { apiUrl } from "@/lib/api";
+import { clearRecordingBackup } from "@/lib/recording-backup";
+import { Icon } from "@/components/icon";
 
 type Meeting = components["schemas"]["MeetingOut"];
 type MeetingPage = components["schemas"]["MeetingListResponse"];
@@ -38,6 +40,7 @@ export default function Home() {
     try {
       const response = await fetch(`${apiUrl}/v1/meetings/${id}`, { method: "DELETE" });
       if (!response.ok) throw new Error();
+      await clearRecordingBackup(id).catch(() => {});
       setMeetings((current) => current.filter((meeting) => meeting.id !== id));
       setMessage("Class recording deleted. Private audio cleanup is queued.");
     } catch {
@@ -45,30 +48,32 @@ export default function Home() {
     }
   }
 
+  const statusLabels: Record<string, string> = { ready: "Ready to study", draft: "Not recorded", queued: "In the queue", uploading: "Uploading", transcribing: "Transcribing", summarizing: "Writing notes", failed: "Needs attention" };
+
   return (
-    <main className="mx-auto min-h-screen max-w-5xl px-6 py-10">
-      <header className="mb-16 flex items-center justify-between border-b border-slate-300 pb-5">
-        <div className="text-xl font-bold tracking-tight">Class Notes</div>
-        <span className="text-sm text-slate-600">On this Mac</span>
-      </header>
-      <div className="grid gap-10 md:grid-cols-2">
-        <section>
-          <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-teal-700">Private workspace</p>
-          <h1 className="mb-5 text-4xl font-semibold leading-tight">Record class. Understand what you learned.</h1>
-          <p className="max-w-md text-lg leading-relaxed text-slate-700">Save a class recording, then review a transcript and study notes organized by topic. Each topic explains what was covered and highlights important details.</p>
-          <p className="mt-6 max-w-md text-sm text-slate-600">Recording starts only when you choose to begin and confirm the consent reminder. Raw audio is removed 24 hours after successful transcription; failed recordings are kept for up to seven days for retry.</p>
-        </section>
-        <section className="rounded-2xl bg-white p-7 shadow-sm" aria-label="Your classes">
-          <div className="mb-6 flex items-center justify-between gap-3">
-            <h2 className="text-2xl font-semibold">Your classes</h2>
-            <button className="rounded border border-teal-700 px-3 py-2 text-sm text-teal-800" onClick={() => void loadMeetings()}>Refresh</button>
-          </div>
-          <Link href="/meetings/new" className="mb-6 inline-block rounded bg-teal-800 px-5 py-3 font-medium text-white">Record a class</Link>
-          {meetings.length ? <ul className="space-y-3">{meetings.map((meeting) => <li className="rounded-lg border border-slate-200 p-4" key={meeting.id}><div className="flex items-start justify-between gap-3"><Link className="font-semibold text-teal-800 underline" href={`/meetings/${meeting.id}`}>{meeting.title}</Link><button className="text-sm text-red-700 underline" onClick={() => void deleteMeeting(meeting.id, meeting.title)}>Delete</button></div><div className="mt-1 text-sm text-slate-600">{new Date(meeting.created_at).toLocaleString()} · {meeting.duration_ms == null ? "No recording" : `${Math.ceil(meeting.duration_ms / 60000)} min`} · {meeting.status}</div></li>)}</ul> : <p className="text-slate-600">No classes yet. Record one when you are ready.</p>}
-          {nextCursor && <button className="mt-5 rounded border border-teal-700 px-4 py-2 text-teal-800" onClick={() => void loadMeetings(nextCursor)}>Load more</button>}
-          {message && <p role="status" aria-live="polite" className="mt-5 text-sm text-slate-700">{message}</p>}
-        </section>
-      </div>
+    <main className="library-page workspace-page">
+      <section className="library-hero">
+        <div className="hero-copy">
+          <p className="eyebrow"><span className="small-star">✳</span> LESS SCRIBBLING. MORE LISTENING.</p>
+          <h1>Be in class.<br /><span>Keep the whole lesson.</span></h1>
+          <p className="hero-description">Stay with the explanation, the example, the lightbulb moment. Turn your lecture into a transcript and thoughtful study notes, ready when you are.</p>
+          <Link href="/meetings/new" className="button-primary"><Icon name="mic" size={18} />Record a class<Icon name="arrow" size={18} /></Link>
+          <p className="hero-footnote"><Icon name="clock" size={14} /> Up to 2 hours per recording · Audio processed on your Mac</p>
+        </div>
+        <aside className="lesson-card" aria-label="How Class Notes works">
+          <div className="lesson-card-top"><span className="eyebrow">A GOOD CLASS, KEPT.</span><span className="paper-star" aria-hidden="true">✳</span></div>
+          <div className="lesson-illustration" aria-hidden="true"><div className="audio-orb"><Icon name="mic" size={28} /></div><div className="illustration-wave">{[9,18,28,15,38,48,26,40,20,32,14,22].map((height, i) => <i key={i} style={{ height }} />)}</div><span className="note-sticker"><Icon name="check" size={17} />Keep the important bits</span></div>
+          <h2>From lecture<br />to lightbulb.</h2>
+          <ol className="lesson-steps"><li><span>01</span>Record without missing a moment</li><li><span>02</span>Revisit what was actually said</li><li><span>03</span>Study one clear topic at a time</li></ol>
+        </aside>
+      </section>
+      <section className="class-library" aria-label="Your classes">
+        <div className="section-heading"><div><p className="eyebrow">PICK UP WHERE YOU LEFT OFF</p><h2>Your class library<span className="count-badge">{meetings.length}</span></h2></div><button className="button-quiet" onClick={() => void loadMeetings()}><Icon name="refresh" size={16} />Refresh</button></div>
+        {meetings.length ? <ul className="class-list">{meetings.map((meeting) => <li className="class-row" key={meeting.id}><span className={`class-icon ${meeting.status === "ready" ? "class-icon-ready" : ""}`}><Icon name={meeting.status === "ready" ? "book" : "file"} size={22} /></span><Link className="class-row-link" href={`/meetings/${meeting.id}`}><h3>{meeting.title}</h3><p>{new Date(meeting.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}<span>·</span>{meeting.duration_ms == null ? "No audio yet" : `${Math.ceil(meeting.duration_ms / 60000)} min recording`}</p></Link><span className={`status-pill status-${meeting.status}`}><i />{statusLabels[meeting.status] || meeting.status}</span><button className="delete-button" aria-label={`Delete ${meeting.title}`} onClick={() => void deleteMeeting(meeting.id, meeting.title)}><Icon name="trash" size={17} /></button><Link className="open-class" href={`/meetings/${meeting.id}`} aria-label={`Open ${meeting.title}`}><Icon name="arrow" size={18} /></Link></li>)}</ul> : <div className="library-empty"><span className="empty-book"><Icon name="book" size={30} /></span><div><h3>Your next lightbulb moment starts here.</h3><p>Record your first class. We’ll keep the notes in one easy-to-find place.</p></div><Link href="/meetings/new" className="button-quiet">Let’s begin<Icon name="arrow" size={17} /></Link></div>}
+        {nextCursor && <button className="button-quiet load-more" onClick={() => void loadMeetings(nextCursor)}>Load more classes<Icon name="arrow" size={16} /></button>}
+        {message && <p role="status" aria-live="polite" className="app-message">{message}</p>}
+      </section>
+      <div className="privacy-note"><Icon name="book" size={16} /><p>Yours to record. Yours to review. Audio stays on your Mac for transcription; the transcript goes to Kyma for study notes.</p></div>
     </main>
   );
 }

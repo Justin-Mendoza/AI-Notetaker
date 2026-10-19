@@ -49,11 +49,32 @@
         "title": "ActionItem",
         "type": "object"
       },
+      "Body_transcribe_live_window_v1_meetings__meeting_id__live_transcript_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "sequence_no": {
+            "exclusiveMaximum": 120.0,
+            "minimum": 0.0,
+            "title": "Sequence No",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "file",
+          "sequence_no"
+        ],
+        "title": "Body_transcribe_live_window_v1_meetings__meeting_id__live_transcript_post",
+        "type": "object"
+      },
       "Body_upload_recording_v1_meetings__meeting_id__recording_post": {
         "properties": {
           "duration_ms": {
             "exclusiveMinimum": 0.0,
-            "maximum": 5400000.0,
+            "maximum": 7200000.0,
             "title": "Duration Ms",
             "type": "integer"
           },
@@ -61,6 +82,11 @@
             "contentMediaType": "application/octet-stream",
             "title": "File",
             "type": "string"
+          },
+          "live_transcription": {
+            "default": false,
+            "title": "Live Transcription",
+            "type": "boolean"
           }
         },
         "required": [
@@ -907,6 +933,110 @@
           }
         },
         "summary": "Rename Meeting",
+        "tags": [
+          "meetings"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/live-transcript": {
+      "get": {
+        "operationId": "get_live_transcript_v1_meetings__meeting_id__live_transcript_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Live Transcript",
+        "tags": [
+          "meetings"
+        ]
+      },
+      "post": {
+        "operationId": "transcribe_live_window_v1_meetings__meeting_id__live_transcript_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_transcribe_live_window_v1_meetings__meeting_id__live_transcript_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SegmentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transcribe Live Window",
         "tags": [
           "meetings"
         ]

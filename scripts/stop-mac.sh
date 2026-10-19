@@ -54,6 +54,14 @@ while IFS= read -r whisper_pid; do
   fi
 done < <(lsof -tiTCP:7777 -sTCP:LISTEN 2>/dev/null || true)
 
+while IFS= read -r cohere_pid; do
+  if [[ ! "$cohere_pid" =~ ^[0-9]+$ ]]; then continue; fi
+  command_line="$(ps -p "$cohere_pid" -o command= 2>/dev/null || true)"
+  if [[ "$command_line" == *".venv-cohere-speech/bin/python -m uvicorn cohere_server:app --app-dir scripts --host 127.0.0.1 --port 7778"* ]]; then
+    kill -TERM "$cohere_pid" 2>/dev/null || true
+  fi
+done < <(lsof -tiTCP:7778 -sTCP:LISTEN 2>/dev/null || true)
+
 if docker info >/dev/null 2>&1; then
   docker compose down
 fi

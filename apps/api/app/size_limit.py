@@ -14,7 +14,9 @@ class UploadLimitMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or not scope["path"].endswith("/recording"):
+        if scope["type"] != "http" or not scope["path"].endswith(
+            ("/recording", "/live-transcript")
+        ):
             await self.app(scope, receive, send)
             return
         for key, value in scope.get("headers", []):

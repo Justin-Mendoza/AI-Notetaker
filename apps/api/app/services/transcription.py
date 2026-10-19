@@ -75,7 +75,36 @@ class WhisperLocalTranscriber(OpenAITranscriber):
         )
 
 
+class CohereLocalTranscriber(OpenAITranscriber):
+    """Use the project's MLX-backed Cohere service on this Mac only."""
+
+    provider = "cohere-local"
+
+    def __init__(self):
+        parsed = urlparse(settings.cohere_local_base_url)
+        if (
+            parsed.scheme != "http"
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed.path.rstrip("/") != "/v1"
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise TranscriptionError("LOCAL_STT_URL_INVALID", transient=False)
+        self.model = settings.cohere_local_model
+        self.request_model = self.model
+        self.client = OpenAI(
+            base_url=settings.cohere_local_base_url,
+            api_key="local-cohere",
+            timeout=3600,
+            max_retries=0,
+        )
+
+
 def create_transcriber() -> Transcriber:
+    if settings.stt_provider == "cohere_local":
+        return CohereLocalTranscriber()
     if settings.stt_provider == "openai":
         return OpenAITranscriber()
     if settings.stt_provider == "whisper_local":
