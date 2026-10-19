@@ -1,0 +1,11 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Local audio<br/>request"]
+  n1["Key and size<br/>checks"]
+  n2["Audio decoding"]
+  n3["Speech model on<br/>one thread"]
+  n4["Returned text"]
+  n0 -->|"Sent with key"| n1
+  n1 -->|"Accepted audio"| n2
+  n2 -->|"Chunked segments"| n3
+  n3 -->|"Produces text"| n4

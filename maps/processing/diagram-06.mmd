@@ -1,0 +1,10 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Main worker asks<br/>for text"]
+  n1["Local helper<br/>process"]
+  n2["Local speech<br/>model"]
+  n3["Temporary audio<br/>files"]
+  n0 -.->|"sends recorded<br/>audio"| n1
+  n1 -.->|"writes temp copy"| n3
+  n3 -.->|"reads samples"| n2
+  n2 -.->|"returns<br/>transcript"| n0

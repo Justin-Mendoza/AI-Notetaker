@@ -1,0 +1,359 @@
+{
+  "map": {
+    "summary": "The overview brings together the analyzed architecture view from each subsystem. Open a subsystem map for its source evidence, detailed flows, and uncertainties.",
+    "diagrams": [
+      {
+        "title": "meeting-api: How a recording becomes study notes (1/2)",
+        "description": "A local client asks the API to create a meeting and send audio; the system verifies the request is local, checks and stores the audio, queues a job, transcribes it, and builds structured study notes.",
+        "nodes": [
+          {
+            "id": "client",
+            "label": "Local user client",
+            "finding_ids": []
+          },
+          {
+            "id": "app",
+            "label": "Meeting notes API",
+            "finding_ids": []
+          },
+          {
+            "id": "auth",
+            "label": "Local-only access check",
+            "finding_ids": []
+          },
+          {
+            "id": "accept",
+            "label": "Meeting and audio handling",
+            "finding_ids": []
+          },
+          {
+            "id": "media",
+            "label": "Audio checks and cutting",
+            "finding_ids": []
+          },
+          {
+            "id": "store",
+            "label": "Saved records and audio",
+            "finding_ids": []
+          }
+        ],
+        "edges": [
+          {
+            "from": "client",
+            "to": "app",
+            "label": "Sends meeting actions",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "app",
+            "to": "auth",
+            "label": "Checks local request",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "auth",
+            "to": "accept",
+            "label": "Allows as local owner",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "accept",
+            "to": "media",
+            "label": "Passes audio to check",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "media",
+            "to": "store",
+            "label": "Stores checked audio",
+            "finding_ids": [],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "operations: How the app starts up",
+        "description": "A person runs the Mac launcher, which starts the database, picks a local speech service, and brings up the app so the page opens in a browser.",
+        "nodes": [
+          {
+            "id": "launcher",
+            "label": "Mac launcher script",
+            "finding_ids": []
+          },
+          {
+            "id": "dev",
+            "label": "Main start-up script",
+            "finding_ids": []
+          },
+          {
+            "id": "db",
+            "label": "Local database",
+            "finding_ids": []
+          },
+          {
+            "id": "stt",
+            "label": "Local speech service",
+            "finding_ids": []
+          },
+          {
+            "id": "app",
+            "label": "Backend, worker, web page",
+            "finding_ids": []
+          },
+          {
+            "id": "browser",
+            "label": "Browser page",
+            "finding_ids": []
+          }
+        ],
+        "edges": [
+          {
+            "from": "launcher",
+            "to": "dev",
+            "label": "Starts and waits",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "dev",
+            "to": "db",
+            "label": "Starts database",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "dev",
+            "to": "stt",
+            "label": "Starts chosen service",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "dev",
+            "to": "app",
+            "label": "Runs app pieces",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "launcher",
+            "to": "browser",
+            "label": "Opens the page",
+            "finding_ids": [],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "persistence: How a meeting's notes data is organized",
+        "description": "A meeting is the central record. Its recording, processing job, transcript pieces, and summary all belong to it, and removing the meeting removes them all.",
+        "nodes": [
+          {
+            "id": "meeting",
+            "label": "Meeting record",
+            "finding_ids": []
+          },
+          {
+            "id": "recording",
+            "label": "Stored recording info",
+            "finding_ids": []
+          },
+          {
+            "id": "job",
+            "label": "Processing job",
+            "finding_ids": []
+          },
+          {
+            "id": "transcript",
+            "label": "Transcript segments",
+            "finding_ids": []
+          },
+          {
+            "id": "summary",
+            "label": "Generated summary",
+            "finding_ids": []
+          }
+        ],
+        "edges": [
+          {
+            "from": "meeting",
+            "to": "recording",
+            "label": "has one",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "meeting",
+            "to": "job",
+            "label": "has one",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "meeting",
+            "to": "transcript",
+            "label": "has many",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "meeting",
+            "to": "summary",
+            "label": "has one",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "meeting",
+            "to": "recording",
+            "label": "delete cascades",
+            "finding_ids": [],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "processing: How a recording becomes meeting notes",
+        "description": "A background worker process loops continuously, claiming one queued job at a time, transcribing and then summarizing it, and saving the outcome.",
+        "nodes": [
+          {
+            "id": "worker",
+            "label": "Background worker process",
+            "finding_ids": []
+          },
+          {
+            "id": "claim",
+            "label": "Pick up next job",
+            "finding_ids": []
+          },
+          {
+            "id": "audio",
+            "label": "Download and prepare audio",
+            "finding_ids": []
+          },
+          {
+            "id": "transcribe",
+            "label": "Turn speech into text",
+            "finding_ids": []
+          },
+          {
+            "id": "summarize",
+            "label": "Build structured notes",
+            "finding_ids": []
+          },
+          {
+            "id": "save",
+            "label": "Save notes and finish",
+            "finding_ids": []
+          }
+        ],
+        "edges": [
+          {
+            "from": "worker",
+            "to": "claim",
+            "label": "asks for work",
+            "finding_ids": [],
+            "uncertain": true
+          },
+          {
+            "from": "claim",
+            "to": "audio",
+            "label": "job points to audio",
+            "finding_ids": [],
+            "uncertain": true
+          },
+          {
+            "from": "audio",
+            "to": "transcribe",
+            "label": "sends each audio chunk",
+            "finding_ids": [],
+            "uncertain": true
+          },
+          {
+            "from": "transcribe",
+            "to": "summarize",
+            "label": "hands over transcript",
+            "finding_ids": [],
+            "uncertain": true
+          },
+          {
+            "from": "summarize",
+            "to": "save",
+            "label": "checklist of notes",
+            "finding_ids": [],
+            "uncertain": true
+          },
+          {
+            "from": "save",
+            "to": "worker",
+            "label": "meeting marked ready",
+            "finding_ids": [],
+            "uncertain": true
+          }
+        ]
+      },
+      {
+        "title": "web: How a class recording becomes study notes",
+        "description": "You record audio in the browser; it is uploaded for processing; afterwards the page shows a transcript and AI-generated notes, refreshed automatically until ready.",
+        "nodes": [
+          {
+            "id": "record",
+            "label": "Record class audio",
+            "finding_ids": []
+          },
+          {
+            "id": "upload",
+            "label": "Upload recording",
+            "finding_ids": []
+          },
+          {
+            "id": "watch",
+            "label": "Track processing status",
+            "finding_ids": []
+          },
+          {
+            "id": "outputs",
+            "label": "Read notes and transcript",
+            "finding_ids": []
+          }
+        ],
+        "edges": [
+          {
+            "from": "record",
+            "to": "upload",
+            "label": "stopped audio sent",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "upload",
+            "to": "watch",
+            "label": "opens class page",
+            "finding_ids": [],
+            "uncertain": false
+          },
+          {
+            "from": "watch",
+            "to": "outputs",
+            "label": "notes become ready",
+            "finding_ids": [],
+            "uncertain": false
+          }
+        ]
+      }
+    ],
+    "unknowns": [
+      "Subsystem boundaries and configured or import-inferred dependencies are recorded in manifest.json; they do not establish runtime calls."
+    ]
+  },
+  "findings": {},
+  "sources": {},
+  "metadata": {
+    "revision": "3f279169c3843b77bf5932f79bb601f7bff74120",
+    "generated_at": "2026-10-19T00:34:02.817194+00:00"
+  }
+}

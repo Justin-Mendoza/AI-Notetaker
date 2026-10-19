@@ -1,0 +1,13 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Local user<br/>client"]
+  n1["Meeting notes<br/>API"]
+  n2["Local-only<br/>access check"]
+  n3["Meeting and<br/>audio handling"]
+  n4["Audio checks and<br/>cutting"]
+  n5["Saved records<br/>and audio"]
+  n0 -->|"Sends meeting<br/>actions"| n1
+  n1 -->|"Checks local<br/>request"| n2
+  n2 -->|"Allows as local<br/>owner"| n3
+  n3 -->|"Passes audio to<br/>check"| n4
+  n4 -->|"Stores checked<br/>audio"| n5

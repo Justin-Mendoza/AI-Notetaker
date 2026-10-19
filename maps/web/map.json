@@ -1,0 +1,1013 @@
+{
+  "map": {
+    "summary": "This area is the web workspace for a private class-recording notes tool. From the browser you record a class, watch it upload and be transcribed, then read AI-generated study notes tied back to the transcript. It also lets you browse, rename, regenerate notes for, delete, or recover your recordings.",
+    "unknowns": [
+      "The page shows that previously saved notes stay usable while new ones are generated, but this is stated in interface text rather than confirmed by backend behavior here.",
+      "It is not shown how recording backups are first written; only reading, appending, and clearing them are covered, so the start of a backup is unconfirmed.",
+      "Recording and transcription behavior in the detail and new-recording pages is described from these files alone; the actual runtime wiring across the whole app cannot be fully confirmed.",
+      "Browsers that lack the required storage and locking features may fail to record or recover; only the missing-locking failure is described explicitly."
+    ],
+    "diagrams": [
+      {
+        "title": "How a class recording becomes study notes",
+        "description": "You record audio in the browser; it is uploaded for processing; afterwards the page shows a transcript and AI-generated notes, refreshed automatically until ready.",
+        "nodes": [
+          {
+            "id": "record",
+            "label": "Record class audio",
+            "finding_ids": [
+              "F0017",
+              "F0019",
+              "F0021"
+            ]
+          },
+          {
+            "id": "upload",
+            "label": "Upload recording",
+            "finding_ids": [
+              "F0022",
+              "F0023"
+            ]
+          },
+          {
+            "id": "watch",
+            "label": "Track processing status",
+            "finding_ids": [
+              "F0004",
+              "F0005",
+              "F0014"
+            ]
+          },
+          {
+            "id": "outputs",
+            "label": "Read notes and transcript",
+            "finding_ids": [
+              "F0010",
+              "F0012"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "record",
+            "to": "upload",
+            "label": "stopped audio sent",
+            "finding_ids": [
+              "F0022",
+              "F0023"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "upload",
+            "to": "watch",
+            "label": "opens class page",
+            "finding_ids": [
+              "F0023",
+              "F0004"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "watch",
+            "to": "outputs",
+            "label": "notes become ready",
+            "finding_ids": [
+              "F0004",
+              "F0010"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "Recording hundreds of small pieces safely",
+        "description": "Audio is captured in one-second pieces. Pieces are kept in memory and also saved in the browser, so a crash or closed tab does not lose an unfinished recording.",
+        "nodes": [
+          {
+            "id": "capture",
+            "label": "Capture audio pieces",
+            "finding_ids": [
+              "F0021"
+            ]
+          },
+          {
+            "id": "memory",
+            "label": "Hold pieces in memory",
+            "finding_ids": [
+              "F0021",
+              "F0022"
+            ]
+          },
+          {
+            "id": "backup",
+            "label": "Save pieces in browser",
+            "finding_ids": [
+              "F0057",
+              "F0059"
+            ]
+          },
+          {
+            "id": "recover",
+            "label": "Offer recovery",
+            "finding_ids": [
+              "F0018",
+              "F0032"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "capture",
+            "to": "memory",
+            "label": "collect chunks",
+            "finding_ids": [
+              "F0021"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "capture",
+            "to": "backup",
+            "label": "store to browser",
+            "finding_ids": [
+              "F0021",
+              "F0059"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "backup",
+            "to": "recover",
+            "label": "restore on reopen",
+            "finding_ids": [
+              "F0018",
+              "F0062"
+            ],
+            "uncertain": true
+          }
+        ]
+      },
+      {
+        "title": "Managing your saved classes",
+        "description": "The home page lists your classes with dates, lengths, and status. You can open one, delete it, or load older classes.",
+        "nodes": [
+          {
+            "id": "list",
+            "label": "See your classes",
+            "finding_ids": [
+              "F0033",
+              "F0034"
+            ]
+          },
+          {
+            "id": "paging",
+            "label": "Load older classes",
+            "finding_ids": [
+              "F0035",
+              "F0053"
+            ]
+          },
+          {
+            "id": "open",
+            "label": "Open a class",
+            "finding_ids": [
+              "F0037",
+              "F0040"
+            ]
+          },
+          {
+            "id": "remove",
+            "label": "Delete a class",
+            "finding_ids": [
+              "F0036",
+              "F0042"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "list",
+            "to": "paging",
+            "label": "more requested",
+            "finding_ids": [
+              "F0035"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "list",
+            "to": "open",
+            "label": "tap a class",
+            "finding_ids": [
+              "F0040"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "list",
+            "to": "remove",
+            "label": "confirm delete",
+            "finding_ids": [
+              "F0036"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "Reading and taking notes with you",
+        "description": "The note view shows overview, topics, decisions, and action items, with links back to transcript moments. You can copy transcript text, download it, or export notes as a document.",
+        "nodes": [
+          {
+            "id": "detail",
+            "label": "See note sections",
+            "finding_ids": [
+              "F0010"
+            ]
+          },
+          {
+            "id": "evidence",
+            "label": "Jump to transcript",
+            "finding_ids": [
+              "F0011",
+              "F0012"
+            ]
+          },
+          {
+            "id": "exchange",
+            "label": "Copy or download",
+            "finding_ids": [
+              "F0012",
+              "F0013"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "detail",
+            "to": "evidence",
+            "label": "follow reference",
+            "finding_ids": [
+              "F0011"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "detail",
+            "to": "exchange",
+            "label": "export notes",
+            "finding_ids": [
+              "F0013"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "Reworking or retrying a class",
+        "description": "When processing fails you can ask for it to be tried again; when notes exist you can ask for them to be rebuilt from the saved transcript while the old draft stays visible.",
+        "nodes": [
+          {
+            "id": "failed",
+            "label": "See a failed job",
+            "finding_ids": [
+              "F0007",
+              "F0048"
+            ]
+          },
+          {
+            "id": "ready",
+            "label": "Notes are ready",
+            "finding_ids": [
+              "F0008",
+              "F0010"
+            ]
+          },
+          {
+            "id": "retry",
+            "label": "Try processing again",
+            "finding_ids": [
+              "F0007",
+              "F0052"
+            ]
+          },
+          {
+            "id": "regen",
+            "label": "Rebuild notes",
+            "finding_ids": [
+              "F0008",
+              "F0016"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "failed",
+            "to": "retry",
+            "label": "ask to retry",
+            "finding_ids": [
+              "F0007"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "ready",
+            "to": "regen",
+            "label": "ask to rebuild",
+            "finding_ids": [
+              "F0008"
+            ],
+            "uncertain": false
+          }
+        ]
+      }
+    ],
+    "layout_notes": []
+  },
+  "findings": {
+    "F0001": {
+      "statement": "The web app is a Next.js (v16) / React 19 single-page-style frontend named \"meeting-notes-web\" that talks to a separate backend API (dependency \"meeting-api\") over HTTP; it renders a private local study-notes workspace rather than performing transcription itself.",
+      "sources": [
+        "S0001",
+        "S0002"
+      ],
+      "uncertain": false
+    },
+    "F0002": {
+      "statement": "The root layout (RootLayout in apps/web/app/layout.tsx) wraps every page with a header brand link to \"/\", a main navigation link \"Your library\", a status indicator labeled \"On your Mac\" and a footer; it sets page metadata title \"Class Notes\". This framing tells users their data is stored locally.",
+      "sources": [
+        "S0002"
+      ],
+      "uncertain": false
+    },
+    "F0003": {
+      "statement": "The meeting detail page (MeetingDetail, route /meetings/[id]) is a client component that drives the whole lifecycle for one recording: it loads detail, then conditionally loads transcript and summary from the backend using apiUrl endpoints, and presents status, notes, and transcript sections.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0004": {
+      "statement": "On mount the detail page fetches GET `${apiUrl}/v1/meetings/${id}` with cache \"no-store\"; a 404 maps to \"Class recording not found.\" and other failures to a generic load error message shown to the user. If the detail reports has_transcript or has_summary, it then fetches `/v1/meetings/${id}/transcript` and `/v1/meetings/${id}/summary` respectively.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0005": {
+      "statement": "While the meeting status is one of uploading/queued/transcribing/summarizing, the page polls the detail endpoint every 4000 ms via setInterval and stops when the status changes, giving live progress feedback without manual refresh.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0006": {
+      "statement": "Users can rename a meeting by submitting the title form, which issues PATCH `${apiUrl}/v1/meetings/${id}` with JSON {title}; success clears the editing flag, reloads detail, and shows \"Title saved.\" A non-OK response shows a save failure message. Title input has maxLength 160.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0007": {
+      "statement": "When a job is in status \"failed\", the page shows last_error_code and offers a \"Retry processing\" action that POSTs `${apiUrl}/v1/meetings/${id}/retry`; non-OK responses surface payload.error.message, and success shows \"Processing queued again\" then reloads.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0008": {
+      "statement": "When status is \"ready\" and a summary exists, a \"Regenerate class notes\" action POSTs `${apiUrl}/v1/meetings/${id}/regenerate`, telling the user notes are being updated from the saved transcript; errors surface payload.error.message or a connection error.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0009": {
+      "statement": "Deleting a meeting requires a window.confirm, issues DELETE `${apiUrl}/v1/meetings/${id}` expecting status 204, clears a client-side recording backup via clearRecordingBackup(id), and routes the user back to \"/\" (library). Failure shows a delete error message.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0010": {
+      "statement": "The page renders AI-generated class notes only when a summary is loaded, including overview, numbered topics with \"What was explained\" and key details, quick review points, decisions, an action-items table (task/owner/due date), and open questions; sections show explicit empty-state text when lists are empty.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0011": {
+      "statement": "Topics/decisions/action items carry evidence_segment_ids; the page resolves them against transcript segments and renders in-page anchor links showing approximate minute offsets (~N min) that jump to `#segment-<id>` transcript entries.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0012": {
+      "statement": "The transcript section shows a copy-to-clipboard button and a download .txt button; individual segments render minute ranges (~start\u2013end min) and use \"[No speech detected in this chunk]\" placeholder text when a segment has no text.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0013": {
+      "statement": "Copy notes and Download .md build a Markdown document (notesMarkdown) locally from the loaded summary and meeting metadata \u2014 including an \"AI draft \u2014 review before using or sharing\" banner \u2014 and use browser Blob/URL.createObjectURL and an anchor click; object URLs are revoked after 60s. Note titles are sanitized for filenames.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0014": {
+      "statement": "The page displays recording upload size in MB when detail.recording exists and shows meeting date/duration; a status banner (role=status, aria-live=polite) maps backend statuses (queued, draft, uploading, failed, summarizing, ready) to human-readable explanations, and warns users to keep the recording tab open while uploading.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0015": {
+      "statement": "The detail page references a client-side recording backup module (clearRecordingBackup from @/lib/recording-backup) and Next.js navigation (useParams/useRouter), implying locally stored recording backups exist on the client; the excerpt shows only its clearing on delete, not how backups are written.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": true
+    },
+    "F0016": {
+      "statement": "The status banner for failed jobs states that previous notes remain available during regeneration, and the summarizing state distinguishes first-time summarization from an update of existing notes, implying the backend preserves old drafts while a new summary is generated; this behavior is asserted by UI text, not verified backend logic here.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": true
+    },
+    "F0017": {
+      "statement": "NewMeeting is a client-side page component that drives the entire class-recording workflow from the browser: it captures microphone audio, creates a meeting, streams partial audio for live transcription, and uploads the full recording, then routes to the meeting detail page. It is started by the user opening the /meetings/new route and pressing record after confirming consent.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0018": {
+      "statement": "On mount the page acquires an exclusive recorder session via acquireRecorderSession() and reads any prior unfinished-recording backup via readRecordingBackup(); if another tab holds the session it shows a busy message, and if a backup exists it restores the saved meetingId, uploadKey, duration, title, and audio blob into an error/recovery state instead of starting fresh.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0019": {
+      "statement": "startRecording() first checks browser capability (navigator.mediaDevices.getUserMedia and MediaRecorder), picks the first supported MIME format from formats (webm/opus, mp4, ogg), requests microphone access, and creates the meeting server-side with a POST to `${apiUrl}/v1/meetings` carrying title and consent_confirmed.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0020": {
+      "statement": "After meeting creation the server returns created.meeting.id, which is stored in meetingIdRef and used as the target for subsequent POSTs to /v1/meetings/{id}/live-transcript and /v1/meetings/{id}/recording; a fresh crypto.randomUUID() is stored as uploadKeyRef and sent as an Idempotency-Key header on both live and final uploads.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0021": {
+      "statement": "MediaRecorder is started with a 1-second timeslice; each ondataavailable chunk is appended to chunksRef in memory and, if disk backup is active, persisted asynchronously through appendRecordingBackup with updated metadata (mime and elapsed duration).",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0022": {
+      "statement": "recorder.onstop rebuilds a Blob from all chunks, computes the duration, waits for pending backup writes, then calls uploadRecording(captured) unless the blob is empty or recording was interrupted (interruptedRef).",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0023": {
+      "statement": "uploadRecording posts the final audio as multipart FormData to `${apiUrl}/v1/meetings/{meetingId}/recording` via XMLHttpRequest with fields file, duration_ms, and live_transcription=true plus the Idempotency-Key header; a 202 response clears the local backup, resets the blob, sets phase 'queued', and router.push to /meetings/{meetingId}.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0024": {
+      "statement": "A 413 response surfaces the '120-minute or 100 MB limit' error message; other non-2xx statuses and network errors set phase 'error' with retry-or-download messaging rather than discarding the recording.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0025": {
+      "statement": "transcribeLivePrefix periodically sends the accumulated chunks (with the container header) as a multipart file to `${apiUrl}/v1/meetings/{meetingId}/live-transcript` labeled with the current sequence_no, guarded so only one request runs at a time and only after roughly one minute of audio per window; on success it appends the returned LiveSegment (sequence_no, start_ms, end_ms, text) to liveSegments.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0026": {
+      "statement": "Live transcription is best-effort: on failure it sets a 15-second retry backoff and shows a 'catching up' status, on the premise that missing transcript is completed after the user stops recording.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0027": {
+      "statement": "Client-side limits enforce a maximum recording of 120 minutes (MAX_DURATION_MS) and 100 MB (MAX_BYTES); exceeding either sets interruptedRef, stops the recorder, and prompts the user to download a local copy.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0028": {
+      "statement": "Microphone track ending (track.onended) and recorder.onerror both mark the recording as interrupted, stop recording, and tell the user to download the captured audio if available.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0029": {
+      "statement": "The page installs navigation guards while audio is unsaved: a beforeunload warning, a capturing capture-phase click handler via guardRecordingNavigation, and a popstate intercept that confirms before leaving, to prevent accidental loss of unuploaded audio.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0030": {
+      "statement": "downloadLocal() creates an object URL from the captured Blob and triggers a download named with an extension derived from the MIME type, revoking the URL after 60 seconds; discardBackup() confirms, clears the browser backup via clearRecordingBackup, and resets the page to idle.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0031": {
+      "statement": "On unmount the component stops the timer, marks the session interrupted, stops the recorder if still recording (or releases the session after pending backup writes), and stops microphone tracks, releasing the recorder session.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0032": {
+      "statement": "Recovery behavior is limited: after a recovered backup the page states recording did not continue while the page was closed, so recovery only offers download or retry upload of the already-captured audio.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0033": {
+      "statement": "The web home page (Home component in app/page.tsx) is a client-side React page that loads and displays a paginated list of the user's saved class meetings, and serves as the entry point to recording and reviewing classes.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0034": {
+      "statement": "loadMeetings fetches GET /v1/meetings from a configured API base URL (apiUrl), optionally appending a cursor query parameter for pagination, with cache disabled; on success it stores items into component state and sets next_cursor, on any failure it sets a user-facing error message.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0035": {
+      "statement": "A timer-driven useEffect runs loadMeetings on mount, and a Refresh button re-invokes loadMeetings; when a nextCursor is returned the UI exposes a 'Load more classes' button that calls loadMeetings(nextCursor) to append further pages.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0036": {
+      "statement": "deleteMeeting prompts the user with window.confirm, then sends DELETE /v1/meetings/{id}; on success it calls clearRecordingBackup(id), removes the meeting from local state, and shows a confirmation message about private audio cleanup being queued; on failure it shows a deletion error message.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0037": {
+      "statement": "Each meeting row displays a title, a formatted creation date, either 'No audio yet' or a rounded-up minutes duration derived from duration_ms, and a status pill mapped through statusLabels covering ready, draft, queued, uploading, transcribing, summarizing, and failed states.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0038": {
+      "statement": "The page states a product privacy/data-flow policy in its UI: audio stays on the user's Mac for transcription while the transcript is sent to 'Kyma' for study notes, and recordings are limited to up to 2 hours each.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0039": {
+      "statement": "The Icon component renders a single inline SVG path chosen from a fixed dictionary of named glyphs (book, mic, arrow, refresh, clock, check, file, spark, trash) with configurable size and style, marked aria-hidden for accessibility.",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0040": {
+      "statement": "Navigation into per-class detail and recording flows is done via Next.js Link to routes /meetings/[id] and /meetings/new, so the actual recording, transcription, and note-generation behavior lives in those other pages (not shown here).",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0041": {
+      "statement": "The home meeting list appears to be backed by the meeting-api subsystem, whose prior description matches the /v1/meetings endpoints, local-only access, and audio-to-notes pipeline this page consumes.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": true
+    },
+    "F0042": {
+      "statement": "clearRecordingBackup is imported from lib/recording-backup and invoked with a meeting id after deletion, indicating local audio backup data is cleaned up separately from the server-side delete, but its internals are not shown in these excerpts.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": true
+    },
+    "F0043": {
+      "statement": "The web app's typed API client surface is generated from the backend OpenAPI schema (openapi-typescript), defining all supported HTTP calls: health checks, meeting CRUD (list/create/get/delete/rename), live-transcript fetch and window transcribe, recording upload, regenerate summary, retry, and summary/transcript reads.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0044": {
+      "statement": "API base URL is resolved at build/runtime from NEXT_PUBLIC_API_URL env var, defaulting to http://localhost:8000, indicating the web app talks directly to the meeting-api backend.",
+      "sources": [
+        "S0008"
+      ],
+      "uncertain": false
+    },
+    "F0045": {
+      "statement": "Meeting creation requires an explicit consent flag (consent_confirmed must be literal true) plus consent_policy_version and an optional title, so consent is captured at creation time; the resulting MeetingOut persists consent_confirmed_at and consent_policy_version.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0046": {
+      "statement": "Recording upload posts file, duration_ms, and a live_transcription default-false flag to /v1/meetings/{meeting_id}/recording, returning status \"queued\" with the meeting_id, implying asynchronous processing rather than immediate transcription.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0047": {
+      "statement": "Live transcription streams in pieces: POST /v1/meetings/{meeting_id}/live-transcript accepts a file plus sequence_no, and GET on the same path retrieves the accumulated live transcript.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0048": {
+      "statement": "Background processing is modeled by a job object (JobOut) exposing id, status, stage, attempts, cursor, and last_error_code, exposed via the meeting detail response as a nullable job.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0049": {
+      "statement": "Meeting detail (MeetingDetailResponse) bundles the meeting, its nullable recording, nullable job, and has_summary/has_transcript booleans, letting a client render processing state and available outputs in one request.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0050": {
+      "statement": "Transcription output is a list of time-ranged segments (SegmentOut with start_ms, end_ms, sequence_no, text) plus a full_text field in TranscriptResponse.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0051": {
+      "statement": "Structured summary output (SummaryContent) contains overview, key_points, open_questions, decisions, action_items, and optional topics; decisions/action items/topics carry evidence_segment_ids that link notes back to transcript segments.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0052": {
+      "statement": "Separate endpoints regenerate a summary and retry a failed meeting (RetryResponse with status), indicating recovery and re-run capabilities for processing jobs.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0053": {
+      "statement": "Meeting listing supports cursor-based pagination via limit and cursor query parameters, returning items and a nullable next_cursor.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0054": {
+      "statement": "Input validation failures are surfaced as HTTP 422 with HTTPValidationError containing location, message, and type per field, a boundary failure mode for all parameterized operations.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0055": {
+      "statement": "The system exposes /healthz and /readyz GET endpoints that return unspecified JSON, providing liveness and readiness signals to whatever orchestrates the backend.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0056": {
+      "statement": "S0008 only reveals the API URL constant; the changed web files (meetings pages, recording-session, recording-backup) are not present in the excerpts, so their runtime wiring cannot be confirmed from these sources.",
+      "sources": [
+        "S0008"
+      ],
+      "uncertain": true
+    },
+    "F0057": {
+      "statement": "recording-backup.ts persists a single unfinished recording to the browser's IndexedDB database 'class-notes-recording', storing recording metadata under key 'active' in a 'metadata' object store and ordered audio chunks in an auto-incrementing 'chunks' object store.",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0058": {
+      "statement": "RecordingBackup metadata carries meetingId, uploadKey, title, mime, and durationMs; the meetingId and uploadKey pair acts as an identity check so append/clear operations only touch the matching active recording.",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0059": {
+      "statement": "appendRecordingBackup adds an audio Blob chunk to the chunks store only if the stored 'active' metadata's meetingId and uploadKey match the supplied metadata, otherwise it aborts the transaction, preventing chunks from a different recording from being mixed in.",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0060": {
+      "statement": "beginRecordingBackup starts a new backup: if existing chunks are present it only proceeds when the meetingId and uploadKey match, then clears old chunks and stores the new metadata; mismatched identity aborts the transaction.",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0061": {
+      "statement": "clearRecordingBackup removes the backup (metadata and chunks) but only when the stored active metadata's meetingId equals the supplied meetingId, leaving a different recording's backup intact.",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0062": {
+      "statement": "readRecordingBackup reads the active metadata and all chunks in one readonly transaction and returns a reconstructed audio Blob typed with the saved mime, or null when there is no metadata or no chunks.",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0063": {
+      "statement": "recording-session.ts acquires an exclusive browser Web Locks lock named 'class-notes-recorder' using ifAvailable:true; it returns a release function when the lock is granted, or null when another recorder page already holds it, so only one recorder page is active at a time on this browser.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0064": {
+      "statement": "acquireRecorderSession rejects with an explicit error when the browser lacks navigator.locks, making recording-session protection a hard requirement for supported browsers (message names Chrome/Edge).",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0065": {
+      "statement": "guardRecordingNavigation intercepts left-click navigation on in-page anchor links (excluding target=_blank, download links, and same-origin/same-pathname+search URLs) and, unless the user confirms leaving, calls preventDefault and stopPropagation to stop the page from unloading while a recording is unfinished upload, protecting the local backup from loss.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0066": {
+      "statement": "Both recording-backup and recording-session operate entirely in the browser (IndexedDB and Web Locks); they perform no network transmission and are unaware of the meeting-api backend, which is only present as a changed-file dependency.",
+      "sources": [
+        "S0009",
+        "S0010"
+      ],
+      "uncertain": true
+    },
+    "F0067": {
+      "statement": "A browser lacking both navigator.locks and IndexedDB would be unable to use these capabilities; the only explicit failure path described is the missing-locks rejection.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": true
+    },
+    "F0068": {
+      "statement": "next.config.ts declares a Next.js configuration with agentRules disabled and exports it; it contains no runtime recording behavior.",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0069": {
+      "statement": "tsconfig.json sets strict TypeScript checking, no emit, bundler module resolution, the '@/*' path alias to the web app root, and React JSX transform for apps/web; it is build configuration only and indicates compilation rather than runtime behavior.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    }
+  },
+  "sources": {
+    "S0001": {
+      "id": "S0001",
+      "path": "apps/web/package.json",
+      "start": 1,
+      "end": 29
+    },
+    "S0002": {
+      "id": "S0002",
+      "path": "apps/web/app/layout.tsx",
+      "start": 1,
+      "end": 24
+    },
+    "S0003": {
+      "id": "S0003",
+      "path": "apps/web/app/meetings/[id]/page.tsx",
+      "start": 1,
+      "end": 245
+    },
+    "S0004": {
+      "id": "S0004",
+      "path": "apps/web/app/meetings/new/page.tsx",
+      "start": 1,
+      "end": 377
+    },
+    "S0005": {
+      "id": "S0005",
+      "path": "apps/web/app/page.tsx",
+      "start": 1,
+      "end": 79
+    },
+    "S0006": {
+      "id": "S0006",
+      "path": "apps/web/components/icon.tsx",
+      "start": 1,
+      "end": 17
+    },
+    "S0007": {
+      "id": "S0007",
+      "path": "apps/web/lib/api-types.ts",
+      "start": 1,
+      "end": 634
+    },
+    "S0008": {
+      "id": "S0008",
+      "path": "apps/web/lib/api.ts",
+      "start": 1,
+      "end": 1
+    },
+    "S0009": {
+      "id": "S0009",
+      "path": "apps/web/lib/recording-backup.ts",
+      "start": 1,
+      "end": 92
+    },
+    "S0010": {
+      "id": "S0010",
+      "path": "apps/web/lib/recording-session.ts",
+      "start": 1,
+      "end": 22
+    },
+    "S0011": {
+      "id": "S0011",
+      "path": "apps/web/next.config.ts",
+      "start": 1,
+      "end": 5
+    },
+    "S0012": {
+      "id": "S0012",
+      "path": "apps/web/tsconfig.json",
+      "start": 1,
+      "end": 41
+    }
+  },
+  "metadata": {
+    "revision": "3f279169c3843b77bf5932f79bb601f7bff74120",
+    "generated_at": "2026-10-19T00:34:02.537558+00:00",
+    "model": "deepseek-v4.1-flash",
+    "model_responses": [
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      }
+    ],
+    "local_changes": false,
+    "repository_url": "https://github.com/Justin-Mendoza/AI-Notetaker"
+  }
+}

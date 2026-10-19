@@ -1,0 +1,7 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Database<br/>reachable check"]
+  n1["Operator counts<br/>view"]
+  n2["Counted saved<br/>records"]
+  n0 -->|"Tests connection"| n2
+  n1 -->|"Reads counts"| n2

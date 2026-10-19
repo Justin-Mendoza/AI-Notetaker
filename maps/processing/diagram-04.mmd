@@ -1,0 +1,11 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Hourly timer"]
+  n1["Run cleanup<br/>steps"]
+  n2["Expire abandoned<br/>drafts"]
+  n3["Delete removed<br/>meetings"]
+  n4["Remove orphaned<br/>files"]
+  n0 -.->|"reaches interval"| n1
+  n1 -.->|"first step"| n2
+  n1 -.->|"second step"| n3
+  n1 -.->|"last step"| n4

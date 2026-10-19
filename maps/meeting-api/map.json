@@ -1,0 +1,1060 @@
+{
+  "map": {
+    "summary": "This area is the backend for a local class-recording notes tool. A person on the same machine creates a meeting, uploads audio (or streams live audio in pieces), and the system transcribes it and turns the transcript into structured study notes. Before any work starts, the system checks the file, limits how much can be uploaded, applies per-hour caps, and saves a job and audio record so processing can happen later. Only local requests from a fixed owner are allowed, and there is no real account login.",
+    "unknowns": [
+      "The API's meeting handlers are mounted, but what each meeting endpoint returns in full detail is not shown here.",
+      "Background processing jobs are created with a kind chosen at upload time, but nothing here shows the code that actually runs them.",
+      "The speech-to-text and summarization providers are selected from settings, but the code paths that invoke them during background processing are not shown.",
+      "Whether the upload size guard is actually attached to the running application is inferred, not observed.",
+      "The audio-splitting worker exists, but how it is scheduled or connected to uploads is inferred from naming and context.",
+      "Live audio extraction depends on external ffmpeg/ffprobe tools being installed, but their availability is not confirmed here.",
+      "How a user obtains or uses an idempotency key across repeated calls is described only through endpoint behavior, not shown end to end."
+    ],
+    "diagrams": [
+      {
+        "title": "How a recording becomes study notes (1/2)",
+        "description": "A local client asks the API to create a meeting and send audio; the system verifies the request is local, checks and stores the audio, queues a job, transcribes it, and builds structured study notes.",
+        "nodes": [
+          {
+            "id": "client",
+            "label": "Local user client",
+            "finding_ids": [
+              "F0018",
+              "F0011"
+            ]
+          },
+          {
+            "id": "app",
+            "label": "Meeting notes API",
+            "finding_ids": [
+              "F0001",
+              "F0013"
+            ]
+          },
+          {
+            "id": "auth",
+            "label": "Local-only access check",
+            "finding_ids": [
+              "F0018"
+            ]
+          },
+          {
+            "id": "accept",
+            "label": "Meeting and audio handling",
+            "finding_ids": [
+              "F0019",
+              "F0020",
+              "F0022",
+              "F0023",
+              "F0027",
+              "F0028"
+            ]
+          },
+          {
+            "id": "media",
+            "label": "Audio checks and cutting",
+            "finding_ids": [
+              "F0041",
+              "F0042",
+              "F0044",
+              "F0069"
+            ]
+          },
+          {
+            "id": "store",
+            "label": "Saved records and audio",
+            "finding_ids": [
+              "F0015",
+              "F0029",
+              "F0030"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "client",
+            "to": "app",
+            "label": "Sends meeting actions",
+            "finding_ids": [
+              "F0018"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "app",
+            "to": "auth",
+            "label": "Checks local request",
+            "finding_ids": [
+              "F0018"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "auth",
+            "to": "accept",
+            "label": "Allows as local owner",
+            "finding_ids": [
+              "F0018",
+              "F0017"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "accept",
+            "to": "media",
+            "label": "Passes audio to check",
+            "finding_ids": [
+              "F0029",
+              "F0025"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "media",
+            "to": "store",
+            "label": "Stores checked audio",
+            "finding_ids": [
+              "F0029",
+              "F0030"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "How a recording becomes study notes (2/2)",
+        "description": "A local client asks the API to create a meeting and send audio; the system verifies the request is local, checks and stores the audio, queues a job, transcribes it, and builds structured study notes.",
+        "nodes": [
+          {
+            "id": "store",
+            "label": "Saved records and audio",
+            "finding_ids": [
+              "F0015",
+              "F0029",
+              "F0030"
+            ]
+          },
+          {
+            "id": "job",
+            "label": "Queued processing work",
+            "finding_ids": [
+              "F0030",
+              "F0031"
+            ]
+          },
+          {
+            "id": "speech",
+            "label": "Speech-to-text",
+            "finding_ids": [
+              "F0049",
+              "F0050",
+              "F0025"
+            ]
+          },
+          {
+            "id": "notes",
+            "label": "Study-notes builder",
+            "finding_ids": [
+              "F0053",
+              "F0060"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "store",
+            "to": "job",
+            "label": "Queues processing",
+            "finding_ids": [
+              "F0030"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "job",
+            "to": "speech",
+            "label": "Runs transcribing",
+            "finding_ids": [
+              "F0050"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "speech",
+            "to": "notes",
+            "label": "Feeds transcript",
+            "finding_ids": [
+              "F0053"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "Live audio arriving in pieces",
+        "description": "A local client sends numbered audio pieces during an ongoing recording; the system cuts a fixed window, transcribes it, stores the text under that number, and can return the full transcript so far.",
+        "nodes": [
+          {
+            "id": "liveclient",
+            "label": "Local user client",
+            "finding_ids": [
+              "F0018"
+            ]
+          },
+          {
+            "id": "liveendpoint",
+            "label": "Live piece handler",
+            "finding_ids": [
+              "F0023",
+              "F0025"
+            ]
+          },
+          {
+            "id": "window",
+            "label": "Cut fixed audio window",
+            "finding_ids": [
+              "F0038",
+              "F0039",
+              "F0040"
+            ]
+          },
+          {
+            "id": "livespeech",
+            "label": "Build speech text",
+            "finding_ids": [
+              "F0025",
+              "F0051"
+            ]
+          },
+          {
+            "id": "segment",
+            "label": "Save numbered segment",
+            "finding_ids": [
+              "F0026"
+            ]
+          },
+          {
+            "id": "readback",
+            "label": "Read full transcript",
+            "finding_ids": [
+              "F0027"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "liveclient",
+            "to": "liveendpoint",
+            "label": "Sends audio piece",
+            "finding_ids": [
+              "F0023"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "liveendpoint",
+            "to": "window",
+            "label": "Requests the window",
+            "finding_ids": [
+              "F0038"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "window",
+            "to": "livespeech",
+            "label": "Passes audio clip",
+            "finding_ids": [
+              "F0025"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "livespeech",
+            "to": "segment",
+            "label": "Returns text",
+            "finding_ids": [
+              "F0026"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "segment",
+            "to": "readback",
+            "label": "Adds to transcript",
+            "finding_ids": [
+              "F0027"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "Keeping the service healthy and watched (1/2)",
+        "description": "Each incoming request gets a tracking ID, timing, and a log line; oversized uploads are cut off early; small endpoints report liveness, database reachability, and counts of queued or overdue records for operators.",
+        "nodes": [
+          {
+            "id": "req",
+            "label": "Incoming request",
+            "finding_ids": [
+              "F0003"
+            ]
+          },
+          {
+            "id": "mw",
+            "label": "Request tracing and safety net",
+            "finding_ids": [
+              "F0003",
+              "F0004"
+            ]
+          },
+          {
+            "id": "limit",
+            "label": "Upload size guard",
+            "finding_ids": [
+              "F0005",
+              "F0067"
+            ]
+          },
+          {
+            "id": "health",
+            "label": "Alive check",
+            "finding_ids": [
+              "F0006"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "req",
+            "to": "mw",
+            "label": "Gets ID and timing",
+            "finding_ids": [
+              "F0003"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "req",
+            "to": "limit",
+            "label": "Checked for size",
+            "finding_ids": [
+              "F0005"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "limit",
+            "to": "health",
+            "label": "Oversized rejected",
+            "finding_ids": [
+              "F0004"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "Keeping the service healthy and watched (2/2)",
+        "description": "Each incoming request gets a tracking ID, timing, and a log line; oversized uploads are cut off early; small endpoints report liveness, database reachability, and counts of queued or overdue records for operators.",
+        "nodes": [
+          {
+            "id": "ready",
+            "label": "Database reachable check",
+            "finding_ids": [
+              "F0007"
+            ]
+          },
+          {
+            "id": "metrics",
+            "label": "Operator counts view",
+            "finding_ids": [
+              "F0008",
+              "F0009"
+            ]
+          },
+          {
+            "id": "dbcounts",
+            "label": "Counted saved records",
+            "finding_ids": [
+              "F0009"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "ready",
+            "to": "dbcounts",
+            "label": "Tests connection",
+            "finding_ids": [
+              "F0007"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "metrics",
+            "to": "dbcounts",
+            "label": "Reads counts",
+            "finding_ids": [
+              "F0009"
+            ],
+            "uncertain": false
+          }
+        ]
+      }
+    ],
+    "layout_notes": [
+      "Split \"How a recording becomes study notes\" into 2 readable views. Repeated node IDs connect the views; all nodes, arrows, and evidence are retained.",
+      "Split \"Keeping the service healthy and watched\" into 2 readable views. Repeated node IDs connect the views; all nodes, arrows, and evidence are retained."
+    ]
+  },
+  "findings": {
+    "F0001": {
+      "statement": "The FastAPI application object (app) is the composition root of the meeting-notes HTTP API; it wires middleware, exception handlers, infrastructure endpoints, and the meetings router, defining the HTTP surface users and operators interact with.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0002": {
+      "statement": "startup/config time only: configure_logging() is called at import time before any request handling, and a module logger is created; logging is not per-request unless the middleware logs.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": true
+    },
+    "F0003": {
+      "statement": "An HTTP middleware assigns every request a UUID in request.state.request_id, times it with time.monotonic, attaches an X-Request-ID response header, and emits an 'http_request' log with request_id, status_code, and duration_ms; this is the per-request observability path and start of user-facing request flow.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0004": {
+      "statement": "The same middleware catches UploadTooLarge and converts it to a 413 REQUEST_TOO_LARGE error response, and catches any other exception to return a generic 500 INTERNAL_ERROR response, so unhandled failures are normalized rather than propagating.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0005": {
+      "statement": "UploadLimitMiddleware is added to the app, enforcing an upload size limit for incoming requests, with UploadTooLarge as its signal consumed by the request middleware.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0006": {
+      "statement": "The GET /healthz endpoint returns {'status':'ok'} with no dependency checks, serving as a liveness probe.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0007": {
+      "statement": "The GET /readyz endpoint opens a SQLAlchemy engine connection and executes 'SELECT 1'; on any exception it raises ApiError(503,'DATABASE_UNAVAILABLE'), making it a readiness probe that verifies actual database connectivity.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0008": {
+      "statement": "The GET /internal/metrics endpoint is excluded from the OpenAPI schema and is gated: if settings.metrics_token is unset it returns 404, otherwise it requires an Authorization header equal to 'Bearer <token>' compared with hmac.compare_digest, returning 401 otherwise. This is an operator-only observability surface.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0009": {
+      "statement": "The metrics endpoint queries the database via SessionLocal to count ProcessingJob rows grouped by status and to count Recording rows whose purge_after is before utc_now() and deleted_at is null, then emits Prometheus-style text gauges meeting_jobs{status=...} for pending/running/failed/completed and meeting_overdue_audio.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0010": {
+      "statement": "ApiError exceptions are mapped through api_error_handler and FastAPI RequestValidationError through validation_error_handler, and error_response(request, status, code, message) is used to build structured error payloads; these form the API's error contract.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0011": {
+      "statement": "CORSMiddleware is configured with allow_origins from local_web_origins(), methods GET/POST/PATCH/DELETE, and headers Authorization, Content-Type, Idempotency-Key, defining which browser clients may call the API and which headers/capabilities (including idempotency key usage) are exposed.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0012": {
+      "statement": "The meetings router (app.api.meetings) is included in the application via app.include_router, so all meeting-related routes are served under this app; the router's internal handlers are not shown in this batch.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0013": {
+      "statement": "The module docstring identifies the package as the 'Meeting Notes API', and the app is titled 'Class Notes API' version 0.1.0, indicating the purpose is a meeting/class-recording notes backend.",
+      "sources": [
+        "S0001",
+        "S0002"
+      ],
+      "uncertain": false
+    },
+    "F0014": {
+      "statement": "The API package (app.api) is described only as container for API routes; no runtime behavior of its own is shown.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0015": {
+      "statement": "Data-related behavior is split: persistent state lives in a SQLAlchemy database accessed through engine/SessionLocal, with models ProcessingJob, Recording, and a utc_now() helper used for time comparisons; recordings have a purge_after field and a soft-delete deleted_at field, suggesting an audio retention/purge lifecycle.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0016": {
+      "statement": "Judging from imports (settings, local auth origins, upload limit, meeting router, background processing job model), the API supports authenticated local web clients, bounded recording uploads, and asynchronous processing jobs, but the concrete handler logic is not present in these excerpts and is therefore inferred.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": true
+    },
+    "F0017": {
+      "statement": "All meeting endpoints are mounted under the /v1/meetings prefix and require an owner identity from get_current_user plus a database session, so every operation is scoped to one local user; ownership is enforced by owned_meeting, which filters by owner_id and excludes soft-deleted rows and raises 404 MEETING_NOT_FOUND otherwise.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0018": {
+      "statement": "Authentication in this build is environment-based rather than account-based: get_current_user only allows requests whose client IP is loopback, whose request hostname is localhost/127.0.0.1/::1, and whose Origin header matches an allowed local web origin when present, always returning the fixed LOCAL_OWNER_ID. Mutating methods require an Origin header.",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0019": {
+      "statement": "create_meeting enforces a rolling one-hour per-owner creation cap (settings.max_meetings_per_hour) returning 429, then stores a draft Meeting with title (default 'Untitled class'), consent timestamp and consent policy version, and returns the created meeting.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0020": {
+      "statement": "list_meetings pages a user's non-deleted meetings newest-first with keyset pagination: limit is bounded 1-100, the cursor encodes (created_at, id) as base64url JSON, and an optional next_cursor is returned only when more rows exist.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0021": {
+      "statement": "get_meeting returns a meeting plus its recording, processing job, and derived has_transcript/has_summary flags; has_transcript is approximated from job.stage == 'summarizing' and has_summary from a Summary existing while meeting status is ready/summarizing/failed, rather than by querying segment/summary content directly.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0022": {
+      "statement": "rename_meeting updates only the title (validated to 1-160 trimmed characters) and updated_at for an owned meeting.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0023": {
+      "statement": "transcribe_live_window accepts an uploaded audio prefix plus a sequence_no and Idempotency-Key, requires the meeting to still be in 'draft' state, and treats the first key as binding the meeting's upload_key; mismatched keys or a non-draft meeting produce 409 INVALID_STATE.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0024": {
+      "statement": "Live transcription is idempotent per sequence_no: an existing segment for that sequence is returned directly, and the idempotency key is persisted before any audio is processed or any model inference runs.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0025": {
+      "statement": "Live transcription streams the upload to a temporary directory, enforces the MAX_FILE_BYTES size limit (413) and rejects empty files (415), then calls extract_live_window and CohereLocalTranscriber (with a 90s timeout) outside any database transaction; only when settings.stt_provider == 'cohere_local', otherwise 503 LOCAL_STT_UNAVAILABLE.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0026": {
+      "statement": "After inference, live transcription re-fetches the meeting with a row lock, re-verifies draft status and matching idempotency key, and inserts a TranscriptSegment tagged with sequence_no and start/end offsets derived from sequence_no and LIVE_CHUNK_MS, storing provider and model names. Transcription failures raise 503 with the transcriber's error code and a message that saved audio can catch up later.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0027": {
+      "statement": "get_live_transcript returns all transcript segments for an owned meeting ordered by sequence_no along with a newline-joined full_text.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0028": {
+      "statement": "upload_recording accepts a recording file plus duration_ms and Idempotency-Key; it rejects duplicate recordings for a meeting (409 RECORDING_EXISTS) unless the same idempotency key is replayed (idempotent success), enforces a rolling one-hour upload cap (429), and requires meeting status draft/uploading with a matching upload_key.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0029": {
+      "statement": "Upload handling writes the file to a temporary path while computing a SHA-256 digest and enforcing MAX_FILE_BYTES and non-empty checks, validates real MIME type and duration via inspect_audio, derives a file extension from the detected MIME type, and stores the object via the storage dependency under a key of owner_id/meeting_id/random uuid plus extension.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0030": {
+      "statement": "On successful upload the code locks the meeting row, re-checks ownership/deletion/status, records a Recording with object_key, mime_type, size, sha256, upload idempotency key, upload timestamp and purge_after (based on settings.failed_audio_retention_days), creates a pending ProcessingJob with max_attempts 3, transitions the meeting to 'queued', and computes duration_ms as the max of measured duration and the latest live segment end_ms, deriving started_at/ended_at.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0031": {
+      "statement": "The processing job kind is chosen at upload time: 'process_live_recording' when live_transcription is requested or any transcript segment already exists for the meeting, otherwise 'process_recording'. This selects background work whose actual execution is not shown in these excerpts.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": true
+    },
+    "F0032": {
+      "statement": "Uploads are transactional against database integrity: an IntegrityError rolls back and, if a recording with the same idempotency key now exists, returns the queued status as a successful replay rather than an error.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0033": {
+      "statement": "ApiError is a structured exception carrying an HTTP status, machine-readable code, and message, used to signal expected API failures (e.g. raised by media and live services).",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0034": {
+      "statement": "error_response builds a consistent JSON error body {\"error\": {\"code\", \"message\", \"request_id\"}}, reusing request.state.request_id when present and otherwise generating a UUID, so every error response is traceable to a request.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0035": {
+      "statement": "api_error_handler and validation_error_handler are async FastAPI exception handlers that convert ApiError and RequestValidationError into the standard error JSON; validation failures always map to 422 with code INVALID_INPUT.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0036": {
+      "statement": "JsonFormatter emits a compact JSON log line with timestamp, level, and event message, and only includes an allowlisted set of metadata fields (request_id, meeting_id, job_id, stage, duration_ms, provider, attempt, error_code, status_code); identifier fields are stringified to avoid leaking non-serializable values.",
+      "sources": [
+        "S0008"
+      ],
+      "uncertain": false
+    },
+    "F0037": {
+      "statement": "configure_logging resets the root logger to a single JSON stream handler at INFO level and filters records to those whose logger name starts with 'app.', suppressing third-party library logs.",
+      "sources": [
+        "S0008"
+      ],
+      "uncertain": false
+    },
+    "F0038": {
+      "statement": "extract_live_window produces one fixed 60-second MP3 window from a growing source recording, derived by sequence number, for live/incremental processing.",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0039": {
+      "statement": "Live window extraction first inspects the source duration and raises ApiError 409 LIVE_AUDIO_PENDING if the requested window end is not yet captured, indicating polling-based consumption of an in-progress recording.",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0040": {
+      "statement": "The live window is produced by invoking ffmpeg with a 120s timeout to trim from the sequence offset, downmix to mono 16kHz 32kbps MP3; if ffmpeg fails the error is translated to ApiError 415 INVALID_MEDIA, and the output is re-inspected to confirm a full window (LIVE_AUDIO_PENDING otherwise).",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0041": {
+      "statement": "inspect_audio validates an upload by checking the claimed MIME type maps to a known container and that the file's magic bytes match that container, rejecting mismatches with 415 UNSUPPORTED_MEDIA; this guards against spoofed content types.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0042": {
+      "statement": "inspect_audio runs ffprobe (30s timeout) to require at least one audio stream and reject any video stream, erroring with 415 INVALID_MEDIA on probe failure, missing audio, video presence, or unreadable duration.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0043": {
+      "statement": "Duration is taken from ffprobe format metadata, falling back to summing packet pts+duration via _packet_duration when the container reports 'N/A'; non-finite or non-positive durations are rejected.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0044": {
+      "statement": "inspect_audio enforces a 120-minute maximum: durations exceeding MAX_DURATION_MS plus ENCODER_PADDING_MS (250ms allowance for encoder delay/padding) raise 413 DURATION_LIMIT, and accepted durations are capped at MAX_DURATION_MS.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0045": {
+      "statement": "Supported formats are webm, ogg, mp4/m4a, wav, and mp3, identified by fixed byte signatures (EBML, OggS, ftyp, RIFF/WAVE, ID3 or MPEG frame sync); a declared MAX_FILE_BYTES of 100,000,000 exists as a size constant, though no size check appears in these excerpts.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0046": {
+      "statement": "Media and live services shell out to external ffprobe/ffmpeg binaries via subprocess with explicit timeouts, so those external tools are runtime dependencies; subprocess output is captured and parsed (JSON or CSV).",
+      "sources": [
+        "S0010",
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0047": {
+      "statement": "The live extraction path calls inspect_audio from the media service and run_ffmpeg/AudioProcessingError from the worker.audio module, implying these services are wired together at runtime within the API.",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0048": {
+      "statement": "Error messages returned to clients are generic, fixed strings (e.g. 'Check the request fields and try again'), avoiding exposure of internal validation or media details.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0049": {
+      "statement": "Transcription converts an audio file on disk into plain text via a provider client; OpenAITranscriber opens the file and calls the OpenAI audio transcriptions API, returning the stripped text, so the input is a Path and the output is a string (S0012).",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0050": {
+      "statement": "create_transcriber selects a transcription implementation from settings.stt_provider among cohere_local, openai, and whisper_local, raising a non-transient TranscriptionError when the configured provider name is unknown (S0012).",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0051": {
+      "statement": "WhisperLocalTranscriber and CohereLocalTranscriber enforce that the configured base URL is loopback-only HTTP under /v1 with no credentials, query, or fragment, rejecting other URLs with LOC AL_STT_URL_INVALID before creating the client (S0012).",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0052": {
+      "statement": "Transcription failures are classified: rate-limit, timeout, and connection errors become transient STT_TEMPORARY, other API status errors become STT_TEMPORARY for status >= 500 and STT_REJECTED otherwise, and a non-string result text raises INVALID_STT_RESPONSE (S0012).",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0053": {
+      "statement": "Summarization turns a list of timestamped transcript segments into structured study notes (overview, key points, topics with evidence IDs, decisions, action items, open questions) validated against a strict JSON schema and Pydantic models (S0011).",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0054": {
+      "statement": "validate_summary rejects any topic, decision, or action item whose evidence_segment_ids is empty or contains an ID outside the allowed set, raising SUMMARY_EVIDENCE_INVALID; schema/type violations raise SUMMARY_INVALID (S0011).",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0055": {
+      "statement": "Long transcripts are chunked by transcript_slices into slices bounded roughly by MAX_SLICE_CHARS (24,000) characters, splitting oversized individual segments into pieces while preserving their segment ID and time range (S0011).",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0056": {
+      "statement": "OpenAISummarizer summarizes each slice independently, then for multi-slice input issues a second reconciliation request to merge the drafts, afterwards restoring the detailed topic notes from the intermediate drafts onto the combined result (S0011).",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0057": {
+      "statement": "Summarization requests are sent to an external LLM with store=False and a schema-constrained JSON output; a non-completed response raises SUMMARY_INCOMPLETE and a refusal content block raises SUMMARY_REFUSED (S0011).",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0058": {
+      "statement": "The summarizer calls an optional check_active callback before each provider request, indicating external cancellation or liveness checking is supported, though the callback's implementation is not shown here (S0011, uncertain).",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": true
+    },
+    "F0059": {
+      "statement": "KymaSummarizer uses an OpenAI-compatible chat completions endpoint restricted to https://kymaapi.com/v1, embedding the allowed evidence segment IDs as an enum in the JSON schema and retrying up to three times with a corrective instruction when the model output fails validation (S0011).",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0060": {
+      "statement": "create_summarizer selects between openai and kyma providers from settings.summary_provider and raises SUMMARY_PROVIDER_INVALID (non-transient) for anything else (S0011).",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0061": {
+      "statement": "Summarizer constructors raise PROVIDER_UNAVAILABLE (non-transient) when the required provider API key setting is missing, so provider availability is decided at construction time (S0011).",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0062": {
+      "statement": "When all transcript segments are blank, OpenAISummarizer short-circuits and returns a fixed 'No clear speech was detected.' content without any provider call (S0011).",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0063": {
+      "statement": "FakeSummarizer and FakeTranscriber are deterministic test doubles that return configured results and count/record calls, used to exercise the same validation and call sequences without external providers (S0011, S0012).",
+      "sources": [
+        "S0011",
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0064": {
+      "statement": "The prompts explicitly instruct the model to treat transcript content as untrusted data and to ignore instructions inside it, and slice bodies are labeled 'untrusted meeting content'; this is prompt-level mitigation rather than a hard enforcement boundary (S0011).",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": true
+    },
+    "F0065": {
+      "statement": "A frozen Settings dataclass loads configuration from environment variables (with dotenv), defaulting database to a PostgreSQL URL, allowed web origin to localhost:3000, and producing a module-level singleton settings; it exposes OpenAI, local Whisper, local Cohere, and Kyma credentials/URLs plus STT and summary provider/model choices.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0066": {
+      "statement": "Settings defines retention and throttling policy values: raw audio retention hours (24), failed audio retention days (7), and per-hour limits for meetings (20), uploads (10), and manual retries (3), plus a metrics token.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0067": {
+      "statement": "UploadLimitMiddleware bounds HTTP requests whose path ends in /recording or /live-transcript: it rejects content-length above MAX_UPLOAD_REQUEST_BYTES and wraps receive() to count streamed body bytes, raising UploadTooLarge past the same limit, before FastAPI spools multipart data to disk.",
+      "sources": [
+        "S0014"
+      ],
+      "uncertain": false
+    },
+    "F0068": {
+      "statement": "The request size ceiling derives from the media service constant MAX_FILE_BYTES plus a 1,000,000 byte allowance for multipart overhead.",
+      "sources": [
+        "S0014"
+      ],
+      "uncertain": false
+    },
+    "F0069": {
+      "statement": "split_audio normalizes source audio via ffmpeg to mono 16 kHz 32kbps MP3, then slices it into approximate 10-minute chunks, dropping a trailing sub-1-second segment and emitting AudioChunk records with sequence numbers and start/end millisecond offsets.",
+      "sources": [
+        "S0015"
+      ],
+      "uncertain": false
+    },
+    "F0070": {
+      "statement": "Each produced chunk is validated to exist and be non-empty and under the 20,000,000 byte STT limit, otherwise AudioProcessingError is raised; run_ffmpeg raises AudioProcessingError on ffmpeg OS errors, timeouts, or non-zero exit codes.",
+      "sources": [
+        "S0015"
+      ],
+      "uncertain": false
+    },
+    "F0071": {
+      "statement": "The chunking worker is driven by a caller-supplied duration_ms and working directory and runs ffmpeg synchronously via subprocess with per-call timeouts (600s for normalization, at least 120s for chunk extraction).",
+      "sources": [
+        "S0015"
+      ],
+      "uncertain": false
+    },
+    "F0072": {
+      "statement": "Configuration labels imply pluggable speech-to-text providers (openai, default; local Whisper at a configurable base URL; local Cohere) and summarization providers (openai default, Kyma), though no code selecting between them is shown in this batch.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": true
+    },
+    "F0073": {
+      "statement": "No explicit invocation or wiring of UploadLimitMiddleware into the FastAPI app, nor of split_audio or settings into request handlers, is present in these excerpts; their connection to the request lifecycle is inferred from naming and context rather than observed.",
+      "sources": [
+        "S0014",
+        "S0015",
+        "S0013"
+      ],
+      "uncertain": true
+    }
+  },
+  "sources": {
+    "S0001": {
+      "id": "S0001",
+      "path": "apps/api/app/main.py",
+      "start": 1,
+      "end": 110
+    },
+    "S0002": {
+      "id": "S0002",
+      "path": "apps/api/app/__init__.py",
+      "start": 1,
+      "end": 1
+    },
+    "S0003": {
+      "id": "S0003",
+      "path": "apps/api/app/api/__init__.py",
+      "start": 1,
+      "end": 1
+    },
+    "S0004": {
+      "id": "S0004",
+      "path": "apps/api/app/api/meetings.py",
+      "start": 1,
+      "end": 504
+    },
+    "S0005": {
+      "id": "S0005",
+      "path": "apps/api/app/auth/__init__.py",
+      "start": 1,
+      "end": 1
+    },
+    "S0006": {
+      "id": "S0006",
+      "path": "apps/api/app/auth/local.py",
+      "start": 1,
+      "end": 54
+    },
+    "S0007": {
+      "id": "S0007",
+      "path": "apps/api/app/errors.py",
+      "start": 1,
+      "end": 28
+    },
+    "S0008": {
+      "id": "S0008",
+      "path": "apps/api/app/observability.py",
+      "start": 1,
+      "end": 40
+    },
+    "S0009": {
+      "id": "S0009",
+      "path": "apps/api/app/services/live.py",
+      "start": 1,
+      "end": 45
+    },
+    "S0010": {
+      "id": "S0010",
+      "path": "apps/api/app/services/media.py",
+      "start": 1,
+      "end": 117
+    },
+    "S0011": {
+      "id": "S0011",
+      "path": "apps/api/app/services/summarization.py",
+      "start": 1,
+      "end": 367
+    },
+    "S0012": {
+      "id": "S0012",
+      "path": "apps/api/app/services/transcription.py",
+      "start": 1,
+      "end": 126
+    },
+    "S0013": {
+      "id": "S0013",
+      "path": "apps/api/app/settings.py",
+      "start": 1,
+      "end": 38
+    },
+    "S0014": {
+      "id": "S0014",
+      "path": "apps/api/app/size_limit.py",
+      "start": 1,
+      "end": 40
+    },
+    "S0015": {
+      "id": "S0015",
+      "path": "apps/api/app/worker/audio.py",
+      "start": 1,
+      "end": 88
+    }
+  },
+  "metadata": {
+    "revision": "3f279169c3843b77bf5932f79bb601f7bff74120",
+    "generated_at": "2026-10-19T00:29:57.211238+00:00",
+    "model": "deepseek-v4.1-flash",
+    "model_responses": [
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      }
+    ],
+    "local_changes": false,
+    "repository_url": "https://github.com/Justin-Mendoza/AI-Notetaker"
+  }
+}

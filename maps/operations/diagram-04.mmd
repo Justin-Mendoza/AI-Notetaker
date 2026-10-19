@@ -1,0 +1,11 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Automated checks"]
+  n1["Backend checks"]
+  n2["Database<br/>migrations"]
+  n3["Built server<br/>image"]
+  n4["Web page build"]
+  n0 -->|"Runs lint and<br/>tests"| n1
+  n0 -->|"Applies<br/>migrations"| n2
+  n1 -.->|"Builds server<br/>image"| n3
+  n0 -->|"Builds web page"| n4

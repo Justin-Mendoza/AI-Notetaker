@@ -1,0 +1,427 @@
+{
+  "revision": "3f279169c3843b77bf5932f79bb601f7bff74120",
+  "affected": [
+    "meeting-api",
+    "operations",
+    "persistence",
+    "processing",
+    "web"
+  ],
+  "removed": [],
+  "changed_files": [
+    ".github/workflows/ci.yml",
+    "apps/api/Dockerfile",
+    "apps/api/alembic/env.py",
+    "apps/api/alembic/versions/0001_meetings.py",
+    "apps/api/alembic/versions/0002_recordings_jobs.py",
+    "apps/api/alembic/versions/0003_transcript.py",
+    "apps/api/alembic/versions/0004_summaries.py",
+    "apps/api/alembic/versions/0005_retry_limits.py",
+    "apps/api/app/__init__.py",
+    "apps/api/app/api/__init__.py",
+    "apps/api/app/api/meetings.py",
+    "apps/api/app/auth/__init__.py",
+    "apps/api/app/auth/local.py",
+    "apps/api/app/db/__init__.py",
+    "apps/api/app/db/base.py",
+    "apps/api/app/db/session.py",
+    "apps/api/app/errors.py",
+    "apps/api/app/main.py",
+    "apps/api/app/models/__init__.py",
+    "apps/api/app/models/job.py",
+    "apps/api/app/models/meeting.py",
+    "apps/api/app/models/recording.py",
+    "apps/api/app/models/summary.py",
+    "apps/api/app/models/transcript.py",
+    "apps/api/app/observability.py",
+    "apps/api/app/services/__init__.py",
+    "apps/api/app/services/live.py",
+    "apps/api/app/services/media.py",
+    "apps/api/app/services/storage.py",
+    "apps/api/app/services/summarization.py",
+    "apps/api/app/services/transcription.py",
+    "apps/api/app/settings.py",
+    "apps/api/app/size_limit.py",
+    "apps/api/app/worker/__init__.py",
+    "apps/api/app/worker/audio.py",
+    "apps/api/app/worker/cleanup.py",
+    "apps/api/app/worker/main.py",
+    "apps/api/app/worker/runner.py",
+    "apps/api/pyproject.toml",
+    "apps/web/app/layout.tsx",
+    "apps/web/app/meetings/[id]/page.tsx",
+    "apps/web/app/meetings/new/page.tsx",
+    "apps/web/app/page.tsx",
+    "apps/web/components/icon.tsx",
+    "apps/web/lib/api-types.ts",
+    "apps/web/lib/api.ts",
+    "apps/web/lib/recording-backup.ts",
+    "apps/web/lib/recording-session.ts",
+    "apps/web/next.config.ts",
+    "apps/web/package.json",
+    "apps/web/tsconfig.json",
+    "docker-compose.yml",
+    "scripts/cohere_server.py",
+    "scripts/dev.sh",
+    "scripts/export_openapi.py",
+    "scripts/generate_fixture.sh",
+    "scripts/start-cohere-local.sh",
+    "scripts/start-mac.sh",
+    "scripts/start-whisper-local.sh",
+    "scripts/stop-mac.sh"
+  ],
+  "full_refresh": true,
+  "unassigned_files": [],
+  "skipped_files": [],
+  "checkpoint_hits": 0,
+  "api_calls": 23,
+  "usage": [
+    {
+      "prompt_tokens": 1924,
+      "total_tokens": 3036,
+      "completion_tokens": 1112,
+      "prompt_tokens_details": {
+        "cached_tokens": 1920,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0006421463999999999,
+      "cache_discount": 0.0001810944,
+      "cached_tokens": 1920
+    },
+    {
+      "prompt_tokens": 7441,
+      "total_tokens": 8763,
+      "completion_tokens": 1322,
+      "prompt_tokens_details": {
+        "cached_tokens": 7424,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0007948810800000001,
+      "cache_discount": 0.0007002316799999999,
+      "cached_tokens": 7424
+    },
+    {
+      "prompt_tokens": 3359,
+      "total_tokens": 4465,
+      "completion_tokens": 1106,
+      "prompt_tokens_details": {
+        "cached_tokens": 3328,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.00065183076,
+      "cache_discount": 0.00031389696,
+      "cached_tokens": 3328
+    },
+    {
+      "prompt_tokens": 6530,
+      "total_tokens": 7634,
+      "completion_tokens": 1104,
+      "prompt_tokens_details": {
+        "cached_tokens": 6528,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0006633597600000002,
+      "cache_discount": 0.00061572096,
+      "cached_tokens": 6528
+    },
+    {
+      "prompt_tokens": 2852,
+      "total_tokens": 3541,
+      "completion_tokens": 689,
+      "prompt_tokens_details": {
+        "cached_tokens": 2816,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.00041343372,
+      "cache_discount": 0.00026560512,
+      "cached_tokens": 2816
+    },
+    {
+      "prompt_tokens": 6566,
+      "total_tokens": 8534,
+      "completion_tokens": 1968,
+      "prompt_tokens_details": {
+        "cached_tokens": 640,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0022394988,
+      "cache_discount": 6.03648e-05,
+      "cached_tokens": 640
+    },
+    {
+      "prompt_tokens": 8358,
+      "total_tokens": 9823,
+      "completion_tokens": 1465,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.00236338452,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 2542,
+      "total_tokens": 4044,
+      "completion_tokens": 1502,
+      "prompt_tokens_details": {
+        "cached_tokens": 640,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0012147408,
+      "cache_discount": 6.03648e-05,
+      "cached_tokens": 640
+    },
+    {
+      "prompt_tokens": 7568,
+      "total_tokens": 8748,
+      "completion_tokens": 1180,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.00205247952,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 2927,
+      "total_tokens": 4017,
+      "completion_tokens": 1090,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.00112430052,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 3431,
+      "total_tokens": 4971,
+      "completion_tokens": 1540,
+      "prompt_tokens_details": {
+        "cached_tokens": 640,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0014043077999999999,
+      "cache_discount": 6.03648e-05,
+      "cached_tokens": 640
+    },
+    {
+      "prompt_tokens": 3370,
+      "total_tokens": 4575,
+      "completion_tokens": 1205,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.00127323252,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 6597,
+      "total_tokens": 8192,
+      "completion_tokens": 1595,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0021042655200000002,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 4185,
+      "total_tokens": 4993,
+      "completion_tokens": 808,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0012021685200000003,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 6244,
+      "total_tokens": 7439,
+      "completion_tokens": 1195,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0018107485200000001,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 2593,
+      "total_tokens": 3742,
+      "completion_tokens": 1149,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0010946275200000002,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 7290,
+      "total_tokens": 9628,
+      "completion_tokens": 2338,
+      "prompt_tokens_details": {
+        "cached_tokens": 640,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0025861248000000002,
+      "cache_discount": 6.03648e-05,
+      "cached_tokens": 640
+    },
+    {
+      "prompt_tokens": 6728,
+      "total_tokens": 8048,
+      "completion_tokens": 1320,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.00197309952,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 6491,
+      "total_tokens": 7750,
+      "completion_tokens": 1259,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.00189371952,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 3324,
+      "total_tokens": 4036,
+      "completion_tokens": 712,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.00098500752,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 6450,
+      "total_tokens": 7298,
+      "completion_tokens": 848,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.00165293352,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 2696,
+      "total_tokens": 3549,
+      "completion_tokens": 853,
+      "prompt_tokens_details": {
+        "cached_tokens": 256,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0009462625200000001,
+      "cache_discount": 2.414592e-05,
+      "cached_tokens": 256
+    },
+    {
+      "prompt_tokens": 6320,
+      "total_tokens": 7858,
+      "completion_tokens": 1538,
+      "prompt_tokens_details": {
+        "cached_tokens": 640,
+        "cache_write_tokens": null
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "cost": 0.0019491947999999999,
+      "cache_discount": 6.03648e-05,
+      "cached_tokens": 640
+    }
+  ],
+  "seeded_locally": false,
+  "dependency_policy": "Changed maps and all transitive known dependents are rechecked. Unchanged presentations reuse PNG/PDF files."
+}

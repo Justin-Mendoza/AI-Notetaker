@@ -1,0 +1,7 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Configuration<br/>settings"]
+  n1["Shared database<br/>pool"]
+  n2["Per-request<br/>session"]
+  n0 -->|"sets address"| n1
+  n1 -->|"lends session"| n2

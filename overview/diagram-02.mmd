@@ -1,0 +1,13 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Mac launcher<br/>script"]
+  n1["Main start-up<br/>script"]
+  n2["Local database"]
+  n3["Local speech<br/>service"]
+  n4["Backend, worker,<br/>web page"]
+  n5["Browser page"]
+  n0 -->|"Starts and waits"| n1
+  n1 -->|"Starts database"| n2
+  n1 -->|"Starts chosen<br/>service"| n3
+  n1 -->|"Runs app pieces"| n4
+  n0 -->|"Opens the page"| n5

@@ -1,0 +1,14 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Background<br/>worker process"]
+  n1["Pick up next job"]
+  n2["Download and<br/>prepare audio"]
+  n3["Turn speech into<br/>text"]
+  n4["Build structured<br/>notes"]
+  n5["Save notes and<br/>finish"]
+  n0 -.->|"asks for work"| n1
+  n1 -.->|"job points to<br/>audio"| n2
+  n2 -.->|"sends each audio<br/>chunk"| n3
+  n3 -.->|"hands over<br/>transcript"| n4
+  n4 -.->|"checklist of<br/>notes"| n5
+  n5 -.->|"meeting marked<br/>ready"| n0

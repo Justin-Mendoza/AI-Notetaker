@@ -1,0 +1,576 @@
+{
+  "map": {
+    "summary": "This area is the local launcher and build/run tooling for a class-recording notes app. Shell scripts on a Mac start the database in Docker, choose a local speech-to-text service, then bring up the backend API, a background worker, and the web page, opening it in the browser. Stop scripts and CI checks keep things repeatable; the whole stack stays on the local machine.",
+    "unknowns": [
+      "Whether the OpenAI client dependency actually contacts an external service is not configured or observed in these excerpts; the stack otherwise appears local-only.",
+      "The API and worker image is described as shared, but the exact worker startup wiring beyond a background worker command is not shown here.",
+      "Whether failure of optional local speech services blocks app start-up, or how errors surface to the person, is not described in these scripts."
+    ],
+    "diagrams": [
+      {
+        "title": "How the app starts up",
+        "description": "A person runs the Mac launcher, which starts the database, picks a local speech service, and brings up the app so the page opens in a browser.",
+        "nodes": [
+          {
+            "id": "launcher",
+            "label": "Mac launcher script",
+            "finding_ids": [
+              "F0013"
+            ]
+          },
+          {
+            "id": "dev",
+            "label": "Main start-up script",
+            "finding_ids": [
+              "F0008"
+            ]
+          },
+          {
+            "id": "db",
+            "label": "Local database",
+            "finding_ids": [
+              "F0004"
+            ]
+          },
+          {
+            "id": "stt",
+            "label": "Local speech service",
+            "finding_ids": [
+              "F0014",
+              "F0012"
+            ]
+          },
+          {
+            "id": "app",
+            "label": "Backend, worker, web page",
+            "finding_ids": [
+              "F0008"
+            ]
+          },
+          {
+            "id": "browser",
+            "label": "Browser page",
+            "finding_ids": [
+              "F0013"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "launcher",
+            "to": "dev",
+            "label": "Starts and waits",
+            "finding_ids": [
+              "F0013"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "dev",
+            "to": "db",
+            "label": "Starts database",
+            "finding_ids": [
+              "F0008",
+              "F0004"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "dev",
+            "to": "stt",
+            "label": "Starts chosen service",
+            "finding_ids": [
+              "F0008"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "dev",
+            "to": "app",
+            "label": "Runs app pieces",
+            "finding_ids": [
+              "F0008"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "launcher",
+            "to": "browser",
+            "label": "Opens the page",
+            "finding_ids": [
+              "F0013"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "How the app is shut down",
+        "description": "A stop script checks recorded process identities, kills the start-up process tree and local speech services, then takes the database down while keeping saved classes.",
+        "nodes": [
+          {
+            "id": "stop",
+            "label": "Mac stop script",
+            "finding_ids": [
+              "F0015"
+            ]
+          },
+          {
+            "id": "procs",
+            "label": "Dev process tree",
+            "finding_ids": [
+              "F0015"
+            ]
+          },
+          {
+            "id": "speech",
+            "label": "Local speech services",
+            "finding_ids": [
+              "F0015"
+            ]
+          },
+          {
+            "id": "saved",
+            "label": "Saved class data",
+            "finding_ids": [
+              "F0015"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "stop",
+            "to": "procs",
+            "label": "Kills dev process",
+            "finding_ids": [
+              "F0015"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "stop",
+            "to": "speech",
+            "label": "Kills speech ports",
+            "finding_ids": [
+              "F0015"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "stop",
+            "to": "saved",
+            "label": "Keeps stored data",
+            "finding_ids": [
+              "F0015"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "How a transcription request is served locally",
+        "description": "A local transcription request is checked for the fixed key, model match, and size, then audio is decoded and run through the speech model on one dedicated thread.",
+        "nodes": [
+          {
+            "id": "req",
+            "label": "Local audio request",
+            "finding_ids": [
+              "F0005"
+            ]
+          },
+          {
+            "id": "checks",
+            "label": "Key and size checks",
+            "finding_ids": [
+              "F0005"
+            ]
+          },
+          {
+            "id": "decode",
+            "label": "Audio decoding",
+            "finding_ids": [
+              "F0005"
+            ]
+          },
+          {
+            "id": "model",
+            "label": "Speech model on one thread",
+            "finding_ids": [
+              "F0006"
+            ]
+          },
+          {
+            "id": "text",
+            "label": "Returned text",
+            "finding_ids": [
+              "F0005"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "req",
+            "to": "checks",
+            "label": "Sent with key",
+            "finding_ids": [
+              "F0005"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "checks",
+            "to": "decode",
+            "label": "Accepted audio",
+            "finding_ids": [
+              "F0005"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "decode",
+            "to": "model",
+            "label": "Chunked segments",
+            "finding_ids": [
+              "F0005",
+              "F0006"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "model",
+            "to": "text",
+            "label": "Produces text",
+            "finding_ids": [
+              "F0005"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "What the automated checks do",
+        "description": "Continuous integration checks the backend against a test database, applies and verifies database migrations, builds the server image, and separately installs, checks, and builds the web page.",
+        "nodes": [
+          {
+            "id": "ci",
+            "label": "Automated checks",
+            "finding_ids": [
+              "F0003"
+            ]
+          },
+          {
+            "id": "api",
+            "label": "Backend checks",
+            "finding_ids": [
+              "F0003"
+            ]
+          },
+          {
+            "id": "mig",
+            "label": "Database migrations",
+            "finding_ids": [
+              "F0003"
+            ]
+          },
+          {
+            "id": "img",
+            "label": "Built server image",
+            "finding_ids": [
+              "F0001",
+              "F0003"
+            ]
+          },
+          {
+            "id": "web",
+            "label": "Web page build",
+            "finding_ids": [
+              "F0003"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "ci",
+            "to": "api",
+            "label": "Runs lint and tests",
+            "finding_ids": [
+              "F0003"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "ci",
+            "to": "mig",
+            "label": "Applies migrations",
+            "finding_ids": [
+              "F0003"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "api",
+            "to": "img",
+            "label": "Builds server image",
+            "finding_ids": [
+              "F0001",
+              "F0003"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "ci",
+            "to": "web",
+            "label": "Builds web page",
+            "finding_ids": [
+              "F0003"
+            ],
+            "uncertain": false
+          }
+        ]
+      }
+    ],
+    "layout_notes": []
+  },
+  "findings": {
+    "F0001": {
+      "statement": "The API container is built from apps/api, installs ffmpeg and CA certificates, runs as an unprivileged user, and starts the FastAPI app with uvicorn on port 8000; the workflow comment 'Build API and worker image' indicates the same image also serves worker runtime.",
+      "sources": [
+        "S0001",
+        "S0003"
+      ],
+      "uncertain": true
+    },
+    "F0002": {
+      "statement": "The API package 'meeting-notes-api' declares runtime dependencies for FastAPI, SQLAlchemy, Alembic migrations, psycopg Postgres driver, OpenAI client, python-dotenv, python-multipart, and uvicorn, indicating transcription-model access (OpenAI), a relational database, and file upload handling.",
+      "sources": [
+        "S0002"
+      ],
+      "uncertain": false
+    },
+    "F0003": {
+      "statement": "CI runs two jobs: an API job that provisions a Postgres 16 service, lints with ruff, runs pytest, applies and checks Alembic migrations against DATABASE_URL, and builds the Docker image; and a web job that installs, lints, typechecks, and builds the Next.js app in apps/web with Node 22.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0004": {
+      "statement": "docker-compose.yml provides only a Postgres 17 service on host port 127.0.0.1:5432 with a persistent named volume postgres_data; the API, worker, and web run outside compose (started by dev.sh) while Docker backs the database.",
+      "sources": [
+        "S0004",
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0005": {
+      "statement": "scripts/cohere_server.py is a loopback-only FastAPI service exposing /health and POST /v1/audio/transcriptions. It requires a fixed bearer 'local-cohere' and an exact model-name match, enforces a 20 MB upload limit, decodes audio via ffmpeg to 16 kHz mono WAV, and returns {\"text\": ...}; model/VAD are loaded at startup in a single background worker thread.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0006": {
+      "statement": "Cohere transcription isolates MLX/GPU work on one dedicated thread (ThreadPoolExecutor max_workers=1, thread_name_prefix 'cohere-gpu'), serializes calls with a threading.Lock, and segments audio into runs with max_chunk_s=35 before ASR; failures map to specific HTTP codes (401, 400, 413, 422, 503) and error messages deliberately avoid leaking audio or model exception payloads.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0007": {
+      "statement": "scripts/cohere_server.py hardcodes local model files under .data/cohere-model/mlx-int8 and uses env vars COHERE_LOCAL_MODEL and COHERE_LOCAL_LANGUAGE; startup must fail if models are missing offline.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0008": {
+      "statement": "scripts/dev.sh (the 'Class Notes' launcher) requires .env with a KYMA_API_KEY (placeholder rejected), creates a permission-restricted .data directory, uses a PID file with process-identity check to avoid double starts, brings up docker compose with a 120s wait, applies Alembic migrations, conditionally starts Whisper Local (port 7777) or Cohere Local (port 7778) based on STT_PROVIDER, then runs the API (uvicorn 127.0.0.1:8000), the background worker (python -m app.worker.main), and the Next.js web dev server (127.0.0.1:3000).",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0009": {
+      "statement": "scripts/dev.sh registers an EXIT/INT/TERM cleanup trap that kills all its child processes and removes its PID file only if it owns it.",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0010": {
+      "statement": "scripts/export_openapi.py imports app.main:app and writes the FastAPI OpenAPI schema to docs/openapi.json for frontend type generation.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0011": {
+      "statement": "scripts/generate_fixture.sh produces a mono 64 kbps MP3 test fixture of 1\u20137200 seconds from a synthesized 440 Hz tone using ffmpeg.",
+      "sources": [
+        "S0008"
+      ],
+      "uncertain": false
+    },
+    "F0012": {
+      "statement": "scripts/start-cohere-local.sh requires a separate .venv-cohere-speech virtualenv, sets HF_HOME to .data/cohere-cache, resolves the model name from app.settings.cohere_local_model by default, forces HF_HUB_OFFLINE=1, and serves cohere_server:app on 127.0.0.1:7778.",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0013": {
+      "statement": "scripts/start-mac.sh is a user-facing launcher: it verifies/starts Docker Desktop, detects an already-running app (probes localhost:3000 and /readyz on :8000), reuses a recorded running dev.sh PID or starts scripts/dev.sh as a child, waits up to 120s for both services, then opens http://localhost:3000 in the browser; it traps EXIT/INT/TERM to kill the dev process it started.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0014": {
+      "statement": "scripts/start-whisper-local.sh requires a pre-installed .venv-whisper-local/bin/whisper-local and execs it in --serve mode on 127.0.0.1:7777.",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0015": {
+      "statement": "scripts/stop-mac.sh verifies the recorded PID's command line still references scripts/dev.sh (refusing to kill a mismatched process), term-recursively kills the dev process tree, waits, then separately TERM-kills Whisper Local on TCP 7777 and Cohere Local on TCP 7778 only when their command lines match expected binaries, and finally runs docker compose down; saved classes remain in the Docker volume.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0016": {
+      "statement": "The stack is local-only: PostgreSQL publishes only on 127.0.0.1:5432, the API/worker bind 127.0.0.1, and the Cohere service binds 127.0.0.1:7778 with a fixed loopback bearer token; external network dependency implied by the OpenAI client dependency is not configured or observed in these excerpts.",
+      "sources": [
+        "S0004",
+        "S0005",
+        "S0006",
+        "S0009"
+      ],
+      "uncertain": true
+    }
+  },
+  "sources": {
+    "S0001": {
+      "id": "S0001",
+      "path": "apps/api/Dockerfile",
+      "start": 1,
+      "end": 11
+    },
+    "S0002": {
+      "id": "S0002",
+      "path": "apps/api/pyproject.toml",
+      "start": 1,
+      "end": 35
+    },
+    "S0003": {
+      "id": "S0003",
+      "path": ".github/workflows/ci.yml",
+      "start": 1,
+      "end": 53
+    },
+    "S0004": {
+      "id": "S0004",
+      "path": "docker-compose.yml",
+      "start": 1,
+      "end": 18
+    },
+    "S0005": {
+      "id": "S0005",
+      "path": "scripts/cohere_server.py",
+      "start": 1,
+      "end": 152
+    },
+    "S0006": {
+      "id": "S0006",
+      "path": "scripts/dev.sh",
+      "start": 1,
+      "end": 100
+    },
+    "S0007": {
+      "id": "S0007",
+      "path": "scripts/export_openapi.py",
+      "start": 1,
+      "end": 11
+    },
+    "S0008": {
+      "id": "S0008",
+      "path": "scripts/generate_fixture.sh",
+      "start": 1,
+      "end": 13
+    },
+    "S0009": {
+      "id": "S0009",
+      "path": "scripts/start-cohere-local.sh",
+      "start": 1,
+      "end": 12
+    },
+    "S0010": {
+      "id": "S0010",
+      "path": "scripts/start-mac.sh",
+      "start": 1,
+      "end": 71
+    },
+    "S0011": {
+      "id": "S0011",
+      "path": "scripts/start-whisper-local.sh",
+      "start": 1,
+      "end": 12
+    },
+    "S0012": {
+      "id": "S0012",
+      "path": "scripts/stop-mac.sh",
+      "start": 1,
+      "end": 68
+    }
+  },
+  "metadata": {
+    "revision": "3f279169c3843b77bf5932f79bb601f7bff74120",
+    "generated_at": "2026-10-19T00:30:29.664809+00:00",
+    "model": "deepseek-v4.1-flash",
+    "model_responses": [
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      }
+    ],
+    "local_changes": false,
+    "repository_url": "https://github.com/Justin-Mendoza/AI-Notetaker"
+  }
+}

@@ -1,0 +1,8 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["See a failed job"]
+  n1["Notes are ready"]
+  n2["Try processing<br/>again"]
+  n3["Rebuild notes"]
+  n0 -->|"ask to retry"| n2
+  n1 -->|"ask to rebuild"| n3

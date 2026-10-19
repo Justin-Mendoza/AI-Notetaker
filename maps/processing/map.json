@@ -1,0 +1,1237 @@
+{
+  "map": {
+    "summary": "This area is the background processing engine for a meeting-notes app. A separate worker process quietly picks up queued jobs, converts uploaded audio into text, and turns that text into structured class notes with topics, decisions, and action items. It also periodically deletes expired audio and abandoned drafts. Some provider wiring and the surrounding web endpoints are only partly shown.",
+    "unknowns": [
+      "Where uploaded audio and generated notes are actually stored, and how the web layer hands jobs to the worker, are outside this area's evidence.",
+      "The exact rules for requeueing summaries left unfinished by an earlier worker run are not shown, though the startup call exists.",
+      "The 100 MB file-size constant in media inspection is declared but no size check using it was observed, so enforcement is unconfirmed.",
+      "Whether the summarizer's optional mid-run validity check is wired for every provider is inferred; only the OpenAI path is shown.",
+      "Which concrete provider implements transcription and summarization at runtime depends on configuration; only the selection logic is visible.",
+      "No scheduler invoking the hourly maintenance job is shown; only the worker's own interval loop is evidenced.",
+      "The local Cohere helper is meant to be called by the application's transcription client, but that client code is not in this area's evidence."
+    ],
+    "diagrams": [
+      {
+        "title": "How a recording becomes meeting notes",
+        "description": "A background worker process loops continuously, claiming one queued job at a time, transcribing and then summarizing it, and saving the outcome.",
+        "nodes": [
+          {
+            "id": "worker",
+            "label": "Background worker process",
+            "finding_ids": [
+              "F0001",
+              "F0003"
+            ]
+          },
+          {
+            "id": "claim",
+            "label": "Pick up next job",
+            "finding_ids": [
+              "F0045",
+              "F0046"
+            ]
+          },
+          {
+            "id": "audio",
+            "label": "Download and prepare audio",
+            "finding_ids": [
+              "F0056",
+              "F0057",
+              "F0035"
+            ]
+          },
+          {
+            "id": "transcribe",
+            "label": "Turn speech into text",
+            "finding_ids": [
+              "F0017",
+              "F0018",
+              "F0058"
+            ]
+          },
+          {
+            "id": "summarize",
+            "label": "Build structured notes",
+            "finding_ids": [
+              "F0021",
+              "F0053"
+            ]
+          },
+          {
+            "id": "save",
+            "label": "Save notes and finish",
+            "finding_ids": [
+              "F0055",
+              "F0052"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "worker",
+            "to": "claim",
+            "label": "asks for work",
+            "finding_ids": [
+              "F0045"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "claim",
+            "to": "audio",
+            "label": "job points to audio",
+            "finding_ids": [
+              "F0046",
+              "F0056"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "audio",
+            "to": "transcribe",
+            "label": "sends each audio chunk",
+            "finding_ids": [
+              "F0058"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "transcribe",
+            "to": "summarize",
+            "label": "hands over transcript",
+            "finding_ids": [
+              "F0052",
+              "F0053"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "summarize",
+            "to": "save",
+            "label": "checklist of notes",
+            "finding_ids": [
+              "F0055"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "save",
+            "to": "worker",
+            "label": "meeting marked ready",
+            "finding_ids": [
+              "F0055"
+            ],
+            "uncertain": true
+          }
+        ]
+      },
+      {
+        "title": "Keeping the job safe while it runs",
+        "description": "Shows how the worker holds onto a claimed job, renews its lease, checks the job is still valid mid-summarization, and copies queued transcripts back onto TranscriptSegment rows so retries are safe.",
+        "nodes": [
+          {
+            "id": "claim",
+            "label": "Claim job with a lease",
+            "finding_ids": [
+              "F0045"
+            ]
+          },
+          {
+            "id": "heartbeat",
+            "label": "Renew the lease",
+            "finding_ids": [
+              "F0047"
+            ]
+          },
+          {
+            "id": "active",
+            "label": "Confirm job still valid",
+            "finding_ids": [
+              "F0048",
+              "F0054"
+            ]
+          },
+          {
+            "id": "segments",
+            "label": "Store transcript pieces",
+            "finding_ids": [
+              "F0051",
+              "F0052"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "claim",
+            "to": "heartbeat",
+            "label": "starts renewing",
+            "finding_ids": [
+              "F0046",
+              "F0047"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "heartbeat",
+            "to": "active",
+            "label": "reports still yours",
+            "finding_ids": [
+              "F0047",
+              "F0048"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "active",
+            "to": "segments",
+            "label": "allows saving",
+            "finding_ids": [
+              "F0054",
+              "F0051"
+            ],
+            "uncertain": true
+          }
+        ]
+      },
+      {
+        "title": "What happens when a job fails",
+        "description": "Failures are classified as temporary or permanent. Temporary ones wait and retry with growing delays; permanent ones mark both the job and the meeting as failed.",
+        "nodes": [
+          {
+            "id": "error",
+            "label": "A step fails",
+            "finding_ids": [
+              "F0030",
+              "F0060"
+            ]
+          },
+          {
+            "id": "classify",
+            "label": "Temporary or permanent?",
+            "finding_ids": [
+              "F0030",
+              "F0059"
+            ]
+          },
+          {
+            "id": "retry",
+            "label": "Wait, then try again",
+            "finding_ids": [
+              "F0059"
+            ]
+          },
+          {
+            "id": "fail",
+            "label": "Mark job and meeting failed",
+            "finding_ids": [
+              "F0059",
+              "F0049"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "error",
+            "to": "classify",
+            "label": "error code reports type",
+            "finding_ids": [
+              "F0060"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "classify",
+            "to": "retry",
+            "label": "temporary, tries left",
+            "finding_ids": [
+              "F0059"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "classify",
+            "to": "fail",
+            "label": "permanent or out of tries",
+            "finding_ids": [
+              "F0059",
+              "F0049"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "retry",
+            "to": "classify",
+            "label": "fails again",
+            "finding_ids": [
+              "F0059"
+            ],
+            "uncertain": true
+          }
+        ]
+      },
+      {
+        "title": "Hourly housekeeping",
+        "description": "Every hour the same worker separately runs maintenance: expires abandoned uploads, deletes soft-deleted meetings and their stored objects, purges audio past its retention date, and clears orphaned files.",
+        "nodes": [
+          {
+            "id": "clock",
+            "label": "Hourly timer",
+            "finding_ids": [
+              "F0001",
+              "F0004"
+            ]
+          },
+          {
+            "id": "cleanup",
+            "label": "Run cleanup steps",
+            "finding_ids": [
+              "F0041"
+            ]
+          },
+          {
+            "id": "expire",
+            "label": "Expire abandoned drafts",
+            "finding_ids": [
+              "F0038"
+            ]
+          },
+          {
+            "id": "delete",
+            "label": "Delete removed meetings",
+            "finding_ids": [
+              "F0038",
+              "F0040"
+            ]
+          },
+          {
+            "id": "sweep",
+            "label": "Remove orphaned files",
+            "finding_ids": [
+              "F0039",
+              "F0043"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "clock",
+            "to": "cleanup",
+            "label": "reaches interval",
+            "finding_ids": [
+              "F0004"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "cleanup",
+            "to": "expire",
+            "label": "first step",
+            "finding_ids": [
+              "F0041"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "cleanup",
+            "to": "delete",
+            "label": "second step",
+            "finding_ids": [
+              "F0041"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "cleanup",
+            "to": "sweep",
+            "label": "last step",
+            "finding_ids": [
+              "F0041"
+            ],
+            "uncertain": true
+          }
+        ]
+      },
+      {
+        "title": "Rejecting bad or oversized uploads",
+        "description": "Before any job is queued, an upload is inspected: its claimed type must match the file's actual bytes, it must contain audio and no video, and it must fit the duration limit.",
+        "nodes": [
+          {
+            "id": "upload",
+            "label": "Someone uploads audio",
+            "finding_ids": [
+              "F0008"
+            ]
+          },
+          {
+            "id": "type",
+            "label": "Check file really is audio",
+            "finding_ids": [
+              "F0008",
+              "F0009"
+            ]
+          },
+          {
+            "id": "probe",
+            "label": "Inspect audio streams",
+            "finding_ids": [
+              "F0010",
+              "F0011"
+            ]
+          },
+          {
+            "id": "limits",
+            "label": "Check length limit",
+            "finding_ids": [
+              "F0012"
+            ]
+          },
+          {
+            "id": "accept",
+            "label": "Accept for processing",
+            "finding_ids": [
+              "F0012"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "upload",
+            "to": "type",
+            "label": "claimed type checked",
+            "finding_ids": [
+              "F0008"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "type",
+            "to": "probe",
+            "label": "bytes match type",
+            "finding_ids": [
+              "F0009",
+              "F0010"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "probe",
+            "to": "limits",
+            "label": "audio found, length read",
+            "finding_ids": [
+              "F0010",
+              "F0012"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "limits",
+            "to": "accept",
+            "label": "within limit",
+            "finding_ids": [
+              "F0012"
+            ],
+            "uncertain": true
+          }
+        ]
+      },
+      {
+        "title": "Keeping audio local with the Cohere option",
+        "description": "When configured for the local Cohere option, a separate helper process runs on the same machine, bound to 127.0.0.1, and transcribes audio that is temporarily written to a private temp folder and deleted afterwards.",
+        "nodes": [
+          {
+            "id": "client",
+            "label": "Main worker asks for text",
+            "finding_ids": [
+              "F0076",
+              "F0020"
+            ]
+          },
+          {
+            "id": "server",
+            "label": "Local helper process",
+            "finding_ids": [
+              "F0061",
+              "F0063"
+            ]
+          },
+          {
+            "id": "model",
+            "label": "Local speech model",
+            "finding_ids": [
+              "F0064",
+              "F0065"
+            ]
+          },
+          {
+            "id": "temp",
+            "label": "Temporary audio files",
+            "finding_ids": [
+              "F0070",
+              "F0074"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "client",
+            "to": "server",
+            "label": "sends recorded audio",
+            "finding_ids": [
+              "F0020",
+              "F0069"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "server",
+            "to": "temp",
+            "label": "writes temp copy",
+            "finding_ids": [
+              "F0070",
+              "F0074"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "temp",
+            "to": "model",
+            "label": "reads samples",
+            "finding_ids": [
+              "F0067"
+            ],
+            "uncertain": true
+          },
+          {
+            "from": "model",
+            "to": "client",
+            "label": "returns transcript",
+            "finding_ids": [
+              "F0073"
+            ],
+            "uncertain": true
+          }
+        ]
+      }
+    ],
+    "layout_notes": []
+  },
+  "findings": {
+    "F0001": {
+      "statement": "The worker entrypoint main() is a long-running process that configures logging, creates a unique worker_id from hostname plus a random UUID, instantiates storage, transcriber, and summarizer, then loops forever: it runs cleanup_once roughly hourly (catching and logging any cleanup exception as 'cleanup_failed') and calls run_once; when run_once returns falsey it sleeps 2 seconds before retrying.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0002": {
+      "statement": "At startup the worker calls requeue_incomplete_summaries before entering its loop, suggesting it recovers summaries that were left incomplete by a previous worker run; the exact requeue logic is not shown.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": true
+    },
+    "F0003": {
+      "statement": "The worker orchestrates background, non-HTTP work: it is the process that performs cleanup and job processing (run_once) using shared database sessions (SessionLocal), storage, a transcriber, and a summarizer.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0004": {
+      "statement": "cleanup runs on a fixed interval CLEANUP_INTERVAL_SECONDS = 60*60 and is isolated from the main job loop via try/except so a cleanup failure does not stop processing.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0005": {
+      "statement": "JsonFormatter emits only a fixed whitelist of fields (request_id, meeting_id, job_id, stage, duration_ms, provider, attempt, error_code, status_code), converting fields ending in '_id' to strings, plus timestamp, level, and event; configure_logging installs it on a stderr StreamHandler, sets INFO level, filters to loggers named 'app.*', and replaces any existing root handlers.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": false
+    },
+    "F0006": {
+      "statement": "The API defines a custom ApiError carrying status_code, code, and message, and error_response builds a JSON body shaped {'error': {code, message, request_id}}, using request.state.request_id when present and otherwise a fresh UUID.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0007": {
+      "statement": "Validation failures are normalized to HTTP 422 with error code INVALID_INPUT and a generic message via validation_error_handler, while ApiError is rendered through api_error_handler; both share error_response for a consistent error envelope.",
+      "sources": [
+        "S0003"
+      ],
+      "uncertain": false
+    },
+    "F0008": {
+      "statement": "inspect_audio validates an uploaded recording by normalizing the claimed MIME type (stripping parameters, lowercasing), checking it against MIME_SIGNATURES, and verifying the file's magic-byte signature (detect_signature) matches; a mismatch raises ApiError 415 UNSUPPORTED_MEDIA.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0009": {
+      "statement": "detect_signature reads the first 16 bytes of the file and recognizes webm (EBML 1a45dfa3), ogg (OggS), mp4 (ftyp at offset 4), wav (RIFF....WAVE), and mp3 (ID3 or MPEG frame sync bits), returning None otherwise.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0010": {
+      "statement": "inspect_audio shells out to ffprobe to inspect streams and duration: it rejects files with no audio stream or any video stream, and if format duration is missing or 'N/A' it falls back to _packet_duration, which derives duration by running ffprobe for per-packet pts_time/duration_time and taking the last pts+duration.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0011": {
+      "statement": "Media inspection failures (OSError, ValueError, JSONDecodeError, subprocess.TimeoutExpired, non-zero ffprobe exit) are converted into ApiError 415 INVALID_MEDIA; ffprobe is invoked with 30s/60s timeouts and check=False, running as an external system.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0012": {
+      "statement": "Duration is converted to milliseconds via math.ceil and enforced against MAX_DURATION_MS (120 minutes) plus ENCODER_PADDING_MS (250ms) tolerance; over-limit recordings raise ApiError 413 DURATION_LIMIT, and inspect_audio returns the normalized MIME type and the capped duration in ms.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": false
+    },
+    "F0013": {
+      "statement": "MAX_FILE_BYTES = 100,000,000 is declared in media.py but no size check using it is present in the inspected excerpt, so its enforcement is not observed here.",
+      "sources": [
+        "S0005"
+      ],
+      "uncertain": true
+    },
+    "F0014": {
+      "statement": "The worker depends on a summarization service (create_summarizer) and a transcription service (create_transcriber) via factory functions, indicating pluggable providers, but their implementations are not in this batch.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": true
+    },
+    "F0015": {
+      "statement": "app/__init__.py declares the package as the 'Meeting Notes API', indicating the overall product purpose is meeting notes.",
+      "sources": [
+        "S0002"
+      ],
+      "uncertain": false
+    },
+    "F0016": {
+      "statement": "Logging metadata (meeting_id, job_id, provider, stage, attempt) reflects a pipeline model where transcription/summarization jobs move through stages with providers and retry attempts, consistent with the worker scheduling run_once jobs.",
+      "sources": [
+        "S0004"
+      ],
+      "uncertain": true
+    },
+    "F0017": {
+      "statement": "The transcription service turns an audio file at a filesystem path into a plain text transcript. A Transcriber protocol defines one method, transcribe(path), and provider classes implement it; the result is the stripped transcript string. It is the input step of the meeting-notes pipeline, fed by the background worker rather than by an HTTP request in this excerpt.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0018": {
+      "statement": "create_transcriber selects the speech-to-text provider from settings.stt_provider, supporting 'cohere_local', 'openai', and 'whisper_local'; an unknown value raises TranscriptionError('STT_PROVIDER_INVALID', transient=False). This is a configuration-driven choice of external system, made at construction time.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0019": {
+      "statement": "OpenAITranscriber uses the OpenAI audio.transcriptions endpoint with settings.stt_model, requiring settings.openai_api_key (else TranscriptionError PROVIDER_UNAVAILABLE, non-transient), and maps rate-limit/timeout/connection failures to STT_TEMPORARY, server errors (>=500) to STT_TEMPORARY, and other status errors to STT_REJECTED. This defines which failures are retryable versus permanent.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0020": {
+      "statement": "WhisperLocalTranscriber and CohereLocalTranscriber both restrict their base URL to loopback-only HTTP at path /v1 with no credentials, query, or fragment; otherwise they raise TranscriptionError('LOCAL_STT_URL_INVALID', non-transient). They send the file's local path contents to a local service (timeout 3600s, no retries) rather than to a remote cloud, a privacy boundary that keeps audio on the machine.",
+      "sources": [
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0021": {
+      "statement": "The summarization service converts a list of timestamped transcript segments into structured class notes: an overview, key_points, topics (heading, summary, key_details, evidence ids), decisions, action_items (task, owner, due date), and open_questions. A SummaryContent model with extra fields forbidden enforces the shape, and validate_summary rejects any topic/decision/action whose evidence ids are empty or not a subset of the allowed segment ids (SUMMARY_INVALID / SUMMARY_EVIDENCE_INVALID). This is the output-producing step of the pipeline.",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0022": {
+      "statement": "transcript_slices splits long transcripts into ordered batches under MAX_SLICE_CHARS (24,000), splitting any single very long segment into pieces and estimating each piece's contribution as text length plus 150. This bounds prompt size and is the mechanism that lets long recordings be summarized in multiple model calls.",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0023": {
+      "statement": "OpenAISummarizer.summarize short-circuits empty/near-empty transcripts by returning a fixed 'No clear speech was detected.' note with empty arrays, avoiding a provider call. Otherwise it requests each slice, and when there is more than one slice it runs a second combining request and then restores the detailed per-slice topics onto the combined result so long classes keep their topic detail.",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0024": {
+      "statement": "OpenAISummarizer uses an OpenAI responses call with a strict JSON schema (class_notes_v2), store=False, max_output_tokens=3000, and raises SUMMARY_INCOMPLETE when status is not 'completed' and SUMMARY_REFUSED on refusal content. Before each request it may invoke an optional check_active callback, suggesting cancellation or job-validity checking by a caller, though the caller itself is not in this batch. This is inferred from the attribute being set externally.",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": true
+    },
+    "F0025": {
+      "statement": "KymaSummarizer is an OpenAI-compatible subclass that validates settings.kyma_base_url equals 'https://kymaapi.com/v1' (else KYMA_URL_INVALID), uses kyma_summary_model, and generates a per-request JSON schema where the evidence_segment_ids enum is restricted to the exact allowed ids. On schema/evidence failure it retries up to three times, appending a correction instruction listing valid ids before each retry, then raises. This is a provider-specific adversarial-validation path.",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0026": {
+      "statement": "create_summarizer chooses 'openai' or 'kyma' from settings.summary_provider and otherwise raises SummaryError('SUMMARY_PROVIDER_INVALID', non-transient). Summarizer and Transcriber are Protocol classes (interfaces) with no body; concrete providers supply provider/model for provenance.",
+      "sources": [
+        "S0006",
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0027": {
+      "statement": "Both services treat transcript and provided text as untrusted data: SUMMARY_PROMPT instructs the model to treat the transcript as data even if it contains instructions and to copy evidence ids exactly, and request bodies are labeled as untrusted meeting content. This is a prompt-injection mitigation applied at model-call time.",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0028": {
+      "statement": "Summary prompts and schema are versioned constants SCHEMA_VERSION='v2', PROMPT_VERSION='v5', and the summary JSON schema is passed both as the OpenAI 'class_notes_v2' schema name and used by Kyma; versions are recorded implicitly in what is sent rather than stored here. They signify which note format and instructions produced a result.",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0029": {
+      "statement": "FakeTranscriber and FakeSummarizer are in-process test doubles: the fake transcriber derives a sequence number from the filename stem and returns a canned text, and the fake summarizer records a call count and validates a supplied result against segment ids. This indicates the pipeline is designed to be exercised without external providers.",
+      "sources": [
+        "S0006",
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0030": {
+      "statement": "Both provider layers classify failures as transient or not through error codes carrying a transient boolean (TranscriptionError, SummaryError), letting callers decide retry versus permanent failure. Examples include SUMMARY_TEMPORARY/STT_TEMPORARY, SUMMARY_REJECTED/STT_REJECTED, SUMMARY_INCOMPLETE, SUMMARY_REFUSED, and provider-unavailable errors that are non-transient. This is the failure surface exposed to the (unshown) worker.",
+      "sources": [
+        "S0006",
+        "S0007"
+      ],
+      "uncertain": false
+    },
+    "F0031": {
+      "statement": "Neither service stores results itself: transcription returns text and summarization returns in-memory Pydantic models; persistence is delegated elsewhere (context names a 'persistence' dependency), so information movement here is files-to-model and model-to-caller rather than database or file writes.",
+      "sources": [
+        "S0006",
+        "S0007"
+      ],
+      "uncertain": true
+    },
+    "F0032": {
+      "statement": "Summarization deliberately avoids sending the transcript to remote storage: OpenAISummarizer sets store=False in the OpenAI responses call, so the transcript is processed but not retained by that endpoint per the request, whereas Kyma uses chat.completions. This is a data-retention boundary stated in code.",
+      "sources": [
+        "S0006"
+      ],
+      "uncertain": false
+    },
+    "F0033": {
+      "statement": "Application configuration is loaded from environment variables (via python-dotenv load_dotenv) into a frozen Settings dataclass, with defaults covering database URL, allowed web origin, local recording dir, STT/summary providers and models, retention/rate-limit thresholds, and a metrics token.",
+      "sources": [
+        "S0008"
+      ],
+      "uncertain": false
+    },
+    "F0034": {
+      "statement": "Settings exposes spendable credentials/openai_api_key and kyma_api_key as plain string fields sourced from environment variables; the excerpts do not show where these are transmitted.",
+      "sources": [
+        "S0008"
+      ],
+      "uncertain": true
+    },
+    "F0035": {
+      "statement": "The audio worker normalizes source audio through ffmpeg to mono 16 kHz 32kbps MP3, then splits it into ~10-minute chunks (CHUNK_MS) capped under MAX_STT_BYTES, returning AudioChunk records with sequence number and millisecond start/end.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0036": {
+      "statement": "Audio processing runs ffmpeg as a subprocess with bounded timeouts and surfaces failures as AudioProcessingError for non-zero exit, timeout, OS errors, empty normalization output, invalid duration, or out-of-limit/empty chunks.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0037": {
+      "statement": "split_audio drops a final chunk when the trailing remainder is under 1 second (only for the default chunk length) to avoid a tiny last segment.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": true
+    },
+    "F0038": {
+      "statement": "The cleanup module performs idempotent maintenance over meetings and audio: expiring abandoned draft/uploading meetings after 7 days, deleting soft-deleted meetings and their summaries/transcript segments/jobs/recording rows and stored objects, purging recordings past purge_after, and sweeping orphaned storage objects.",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0039": {
+      "statement": "sweep_orphaned_objects only deletes storage keys matching a UUID/UUID/UUID.(webm|ogg|m4a|wav|mp3) pattern that are absent from Recording.object_key and older than min_age_hours (default 24), protecting unexpected keys.",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0040": {
+      "statement": "Cleanup uses per-item sessions and skips items on storage.delete exceptions, so a single failed deletion does not abort the sweep; deleted rows are removed only after the object deletion succeeds for deleted meetings.",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0041": {
+      "statement": "cleanup_once sequentially runs expire_abandoned_meetings, cleanup_deleted_meetings, purge_expired_audio, and sweep_orphaned_objects, returning counts by category; main() wires it to the real SessionLocal factory and get_storage().",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0042": {
+      "statement": "The cleanup task is an entrypoint-style maintenance job intended to run idempotently; it depends on persistence models (Meeting, Recording, Summary, TranscriptSegment, ProcessingJob) and a Storage abstraction, but the excerpts do not show a scheduler invoking it.",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": true
+    },
+    "F0043": {
+      "statement": "Storage operations (delete, list_objects) and the Storage/get_storage abstraction are the boundary through which audio object bytes are created and removed; object keys are stored on Recording.object_key.",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0044": {
+      "statement": "The worker package is described only as a 'durable worker process' in its module docstring; no runtime behavior is visible from this excerpt.",
+      "sources": [
+        "S0009"
+      ],
+      "uncertain": true
+    },
+    "F0045": {
+      "statement": "The worker runner claims queued or expired processing jobs from the database: claim_job selects a ProcessingJob that is either pending and due, or running with an expired lease, using row locking (skip_locked), then marks it running, increments attempts, sets a lease deadline, and advances the related Meeting status to transcribing or summarizing based on the job stage.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0046": {
+      "statement": "A worker process can recover the meeting-notes pipeline across restarts: run_once claims one job, logs its details, wires storage and transcriber dependencies, and, when heartbeat is enabled, runs process_job under a LeaseHeartbeat that periodically renews the job lease.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0047": {
+      "statement": "LeaseHeartbeat runs a daemon thread that renews the job lease every LEASE_SECONDS/3; if renewal fails or raises, the loop silently stops, and the heartbeat is stopped and joined when the context exits.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0048": {
+      "statement": "ensure_active re-reads the job row to confirm it is still running, still owned by this worker, and has an unexpired lease, raising LeaseLost if not; it also loads the meeting and raises JobCancelled if the meeting is missing or soft-deleted.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0049": {
+      "statement": "claim_job treats certain jobs as non-actionable: if the meeting is missing or deleted it completes the job, and if an expired running job has already reached max_attempts it fails both the job (WORKER_TIMEOUT) and the meeting.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0050": {
+      "statement": "requeue_incomplete_summaries finds jobs marked completed at the summarizing stage whose meeting is still summarizing and has no Summary, resetting them to pending to re-run summary generation; this supports a transcription-only worker that leaves summaries incomplete.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0051": {
+      "statement": "Each transcribed audio chunk is persisted as a TranscriptSegment using a dialect-specific upsert that does nothing on conflict (PostgreSQL constraint uq_transcript_sequence, SQLite meeting_id/sequence_no), and advances the job cursor. Unsupported database dialects raise a non-transient ProcessingFailure UNSUPPORTED_DATABASE.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0052": {
+      "statement": "complete_transcription verifies the stored transcript segments form a contiguous sequence 0..count-1 (raising TRANSCRIPT_INCOMPLETE otherwise) and that a Recording exists (MISSING_RECORDING), then transitions the job to the summarizing stage/pending and sets the recording's purge_after based on raw_audio_retention_hours.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0053": {
+      "statement": "process_job for the summarizing stage loads contiguous transcript segments into SummarySegment inputs, ensures they cover the job cursor (TRANSCRIPT_INCOMPLETE otherwise), runs the summarizer, wraps SummaryError into a ProcessingFailure, and persists the result via save_summary.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0054": {
+      "statement": "When using OpenAISummarizer, process_job attaches a check_active callback so the summarizer can periodically confirm the job lease is still valid mid-summarization.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0055": {
+      "statement": "save_summary validates the summary content against the set of known transcript segment IDs, then inserts or updates the Summary row (schema/prompt versions, model, content JSON) and marks the job completed and the meeting ready.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0056": {
+      "statement": "process_job for the transcribing stage downloads the recording audio from storage into a temporary directory, verifies the downloaded content's SHA-256 against the stored recording hash (INVALID_AUDIO if mismatched), and maps storage read failures to transient STORAGE_READ_FAILED.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0057": {
+      "statement": "After download, process_job inspects the audio duration (mapping a 413 error to non-transient LIMIT_EXCEEDED, other ApiError to INVALID_AUDIO), splits it into chunks, and fails non-transiently if splitting raises or yields no chunks.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0058": {
+      "statement": "For each chunk not already present, process_job calls the transcriber, wraps TranscriptionError into a ProcessingFailure preserving code and transience, and saves the segment; for live-capture jobs it uses split_audio with 60-second chunks and computes the required final count from the maximum of chunk count and existing segment count.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0059": {
+      "statement": "mark_failure records a job's error code and either reschedules it (transient failure with remaining attempts, setting status pending with exponential backoff capped at 300 seconds plus jitter) or marks both job and meeting failed, but only if the job is still running and owned by this worker.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0060": {
+      "statement": "The module's error model distinguishes exceptions by outcome: LeaseLost, JobCancelled, and ProcessingFailure each carry a code and a transient flag; the transient flag drives whether mark_failure retries or permanently fails the job.",
+      "sources": [
+        "S0012"
+      ],
+      "uncertain": false
+    },
+    "F0061": {
+      "statement": "The Cohere transcription service is a FastAPI app that runs on loopback only and is started as a separate Python process via uvicorn on 127.0.0.1:7778, loaded with app-dir scripts so cohere_server.py is the server module.",
+      "sources": [
+        "S0014"
+      ],
+      "uncertain": false
+    },
+    "F0062": {
+      "statement": "start-cohere-local.sh locates its own repository root, verifies the dedicated virtual env .venv-cohere-speech exists, sets restrictive umask 077, points HF_HOME at a private cache, forces HF_HUB_OFFLINE=1, and resolves the model name from the application settings default when COHERE_LOCAL_MODEL is unset.",
+      "sources": [
+        "S0014"
+      ],
+      "uncertain": false
+    },
+    "F0063": {
+      "statement": "On startup the app constructs a CohereWorker, which makes a single-threaded ThreadPoolExecutor (thread prefix cohere-gpu) and builds the CohereEngine on that worker thread; if engine construction fails, the pool is shut down and the error propagates so server startup fails.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0064": {
+      "statement": "CohereEngine loads a local MLX Cohere ASR model from the repo-relative path .data/cohere-model/mlx-int8 and a Silero MLX VAD backend, and forces both to load at init so startup fails when offline assets are missing.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0065": {
+      "statement": "The model identifier defaults to mlx-community/cohere-transcribe-03-2026-mlx-8bit, is overridable via COHERE_LOCAL_MODEL, and is reported by the /health endpoint along with a fixed runtime label 'mlx-speech'.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0066": {
+      "statement": "Transcription work stays pinned to the worker's owning thread: CohereWorker.transcribe submits engine.transcribe to the pool and blocks on the result, and MLX/model operations are documented as requiring their owning thread.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0067": {
+      "statement": "CohereEngine.transcribe reads a WAV with Python wave, converts 16-bit PCM samples to normalized float32, explicitly segments audio with segment_audio (merge_gap_s=1.0, max_chunk_s=35.0) rather than relying on the runtime's built-in vad=True, transcribes each run at sample_rate=16000 with the configured LANGUAGE, and joins non-empty stripped results with spaces.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0068": {
+      "statement": "Transcription output is validated: a non-string result.text raises TypeError('Invalid model output') inside the engine and again after the worker call, guarding against malformed model output.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0069": {
+      "statement": "The POST /v1/audio/transcriptions endpoint requires a Bearer token exactly equal to 'local-cohere'; other values return HTTP 401, and a supplied model form field must equal MODEL or the request returns HTTP 400.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0070": {
+      "statement": "Uploaded audio is streamed in 1 MiB chunks to a private temp directory under a TemporaryDirectory(prefix='cohere-audio-'); larger than 20,000,000 bytes returns HTTP 413 and an empty upload returns HTTP 400.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0071": {
+      "statement": "Audio is converted to 16 kHz mono pcm_s16le WAV by invoking the external ffmpeg binary (nostdin, -v error, 120s timeout); ffmpeg subprocess or OS failures are mapped to HTTP 422 'Audio could not be decoded'.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0072": {
+      "statement": "Only one transcription may run at a time: the endpoint holds a module-level threading.Lock around engine.transcribe, and any exception during transcription is mapped to HTTP 503 'Local Cohere transcription failed' without exposing audio, text, or model payloads.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0073": {
+      "statement": "On success the endpoint returns JSON {\"text\": <stripped transcription>}; on shutdown the lifespan context closes the worker pool and clears app.state.engine.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0074": {
+      "statement": "Temporary audio is stored only within a temp directory that is deleted when the request completes; the served model files and HF cache live under the repository's .data directory rather than in the app database.",
+      "sources": [
+        "S0013",
+        "S0014"
+      ],
+      "uncertain": false
+    },
+    "F0075": {
+      "statement": "The service is intentionally isolated from the main application's Python environment by requiring its own .venv-cohere-speech interpreter and by sourcing the model default via a separate .venv invocation of apps/api settings.",
+      "sources": [
+        "S0014"
+      ],
+      "uncertain": false
+    },
+    "F0076": {
+      "statement": "The transcription server exposes no UI; it is a localhost HTTP API meant to be called by the application's transcription client, evidenced by the 401 message 'Use the local transcription client'.",
+      "sources": [
+        "S0013"
+      ],
+      "uncertain": true
+    }
+  },
+  "sources": {
+    "S0001": {
+      "id": "S0001",
+      "path": "apps/api/app/worker/main.py",
+      "start": 1,
+      "end": 38
+    },
+    "S0002": {
+      "id": "S0002",
+      "path": "apps/api/app/__init__.py",
+      "start": 1,
+      "end": 1
+    },
+    "S0003": {
+      "id": "S0003",
+      "path": "apps/api/app/errors.py",
+      "start": 1,
+      "end": 28
+    },
+    "S0004": {
+      "id": "S0004",
+      "path": "apps/api/app/observability.py",
+      "start": 1,
+      "end": 40
+    },
+    "S0005": {
+      "id": "S0005",
+      "path": "apps/api/app/services/media.py",
+      "start": 1,
+      "end": 117
+    },
+    "S0006": {
+      "id": "S0006",
+      "path": "apps/api/app/services/summarization.py",
+      "start": 1,
+      "end": 367
+    },
+    "S0007": {
+      "id": "S0007",
+      "path": "apps/api/app/services/transcription.py",
+      "start": 1,
+      "end": 126
+    },
+    "S0008": {
+      "id": "S0008",
+      "path": "apps/api/app/settings.py",
+      "start": 1,
+      "end": 38
+    },
+    "S0009": {
+      "id": "S0009",
+      "path": "apps/api/app/worker/__init__.py",
+      "start": 1,
+      "end": 1
+    },
+    "S0010": {
+      "id": "S0010",
+      "path": "apps/api/app/worker/audio.py",
+      "start": 1,
+      "end": 88
+    },
+    "S0011": {
+      "id": "S0011",
+      "path": "apps/api/app/worker/cleanup.py",
+      "start": 1,
+      "end": 146
+    },
+    "S0012": {
+      "id": "S0012",
+      "path": "apps/api/app/worker/runner.py",
+      "start": 1,
+      "end": 496
+    },
+    "S0013": {
+      "id": "S0013",
+      "path": "scripts/cohere_server.py",
+      "start": 1,
+      "end": 152
+    },
+    "S0014": {
+      "id": "S0014",
+      "path": "scripts/start-cohere-local.sh",
+      "start": 1,
+      "end": 12
+    }
+  },
+  "metadata": {
+    "revision": "3f279169c3843b77bf5932f79bb601f7bff74120",
+    "generated_at": "2026-10-19T00:32:57.145597+00:00",
+    "model": "deepseek-v4.1-flash",
+    "model_responses": [
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      }
+    ],
+    "local_changes": false,
+    "repository_url": "https://github.com/Justin-Mendoza/AI-Notetaker"
+  }
+}

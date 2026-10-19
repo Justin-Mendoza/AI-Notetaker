@@ -1,0 +1,9 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Saved records<br/>and audio"]
+  n1["Queued<br/>processing work"]
+  n2["Speech-to-text"]
+  n3["Study-notes<br/>builder"]
+  n0 -->|"Queues<br/>processing"| n1
+  n1 -.->|"Runs<br/>transcribing"| n2
+  n2 -->|"Feeds transcript"| n3

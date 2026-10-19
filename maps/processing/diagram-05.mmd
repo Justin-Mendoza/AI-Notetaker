@@ -1,0 +1,11 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Someone uploads<br/>audio"]
+  n1["Check file<br/>really is audio"]
+  n2["Inspect audio<br/>streams"]
+  n3["Check length<br/>limit"]
+  n4["Accept for<br/>processing"]
+  n0 -.->|"claimed type<br/>checked"| n1
+  n1 -.->|"bytes match type"| n2
+  n2 -.->|"audio found,<br/>length read"| n3
+  n3 -.->|"within limit"| n4

@@ -1,0 +1,9 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Record class<br/>audio"]
+  n1["Upload recording"]
+  n2["Track processing<br/>status"]
+  n3["Read notes and<br/>transcript"]
+  n0 -->|"stopped audio<br/>sent"| n1
+  n1 -->|"opens class page"| n2
+  n2 -->|"notes become<br/>ready"| n3

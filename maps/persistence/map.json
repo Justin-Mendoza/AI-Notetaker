@@ -1,0 +1,754 @@
+{
+  "map": {
+    "summary": "This area stores and protects the data behind a meeting-notes service: meetings, their uploaded recordings, transcription jobs, transcript text, and generated summaries. It also sets up database structure, private file storage, error replies, and structured logs. Most pieces are foundations (schema, settings, storage); the actual web endpoints and background workers are not shown here.",
+    "unknowns": [
+      "No route handlers, background workers, or object-storage client appear in this batch, so the full request-to-notes flow cannot be confirmed here.",
+      "It is inferred, not observed, that the API and worker processes share the same local recording folder (F0030).",
+      "Where request.state.request_id is populated (presumed middleware) is not shown (F0013).",
+      "External transcription and summarization providers and quota limits are configured but have no visible call sites in this batch (F0031).",
+      "Whether any of the declared tables or storage functions are used at runtime cannot be confirmed from import-time registration alone (F0002).",
+      "How often recordings are purged and which process performs deletion is not shown."
+    ],
+    "diagrams": [
+      {
+        "title": "How a meeting's notes data is organized",
+        "description": "A meeting is the central record. Its recording, processing job, transcript pieces, and summary all belong to it, and removing the meeting removes them all.",
+        "nodes": [
+          {
+            "id": "meeting",
+            "label": "Meeting record",
+            "finding_ids": [
+              "F0005"
+            ]
+          },
+          {
+            "id": "recording",
+            "label": "Stored recording info",
+            "finding_ids": [
+              "F0006"
+            ]
+          },
+          {
+            "id": "job",
+            "label": "Processing job",
+            "finding_ids": [
+              "F0007",
+              "F0008",
+              "F0009"
+            ]
+          },
+          {
+            "id": "transcript",
+            "label": "Transcript segments",
+            "finding_ids": [
+              "F0010"
+            ]
+          },
+          {
+            "id": "summary",
+            "label": "Generated summary",
+            "finding_ids": [
+              "F0011"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "meeting",
+            "to": "recording",
+            "label": "has one",
+            "finding_ids": [
+              "F0006"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "meeting",
+            "to": "job",
+            "label": "has one",
+            "finding_ids": [
+              "F0007"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "meeting",
+            "to": "transcript",
+            "label": "has many",
+            "finding_ids": [
+              "F0010"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "meeting",
+            "to": "summary",
+            "label": "has one",
+            "finding_ids": [
+              "F0011"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "meeting",
+            "to": "recording",
+            "label": "delete cascades",
+            "finding_ids": [
+              "F0014"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "How the database structure is kept in step",
+        "description": "The migration tool reads the declared data models as its target shape and the configured database address, then either prints the SQL or applies it to a live database.",
+        "nodes": [
+          {
+            "id": "models",
+            "label": "Declared data models",
+            "finding_ids": [
+              "F0001",
+              "F0002"
+            ]
+          },
+          {
+            "id": "migenv",
+            "label": "Migration runner",
+            "finding_ids": [
+              "F0001",
+              "F0003"
+            ]
+          },
+          {
+            "id": "settings",
+            "label": "Configuration settings",
+            "finding_ids": [
+              "F0001",
+              "F0027"
+            ]
+          },
+          {
+            "id": "target",
+            "label": "Database structure",
+            "finding_ids": [
+              "F0003"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "models",
+            "to": "migenv",
+            "label": "declares target shape",
+            "finding_ids": [
+              "F0001",
+              "F0002"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "settings",
+            "to": "migenv",
+            "label": "supplies address",
+            "finding_ids": [
+              "F0001",
+              "F0003"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "migenv",
+            "to": "target",
+            "label": "applies changes",
+            "finding_ids": [
+              "F0003"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "How recordings are kept privately on disk",
+        "description": "Recordings are saved as private files under one configured folder. Each file name must match a strict pattern, saving happens atomically, and reading or listing is offered for later use.",
+        "nodes": [
+          {
+            "id": "incoming",
+            "label": "Recording file",
+            "finding_ids": [
+              "F0006",
+              "F0022"
+            ]
+          },
+          {
+            "id": "store",
+            "label": "Private file store",
+            "finding_ids": [
+              "F0020",
+              "F0021"
+            ]
+          },
+          {
+            "id": "saved",
+            "label": "Stored file on disk",
+            "finding_ids": [
+              "F0021",
+              "F0022"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "incoming",
+            "to": "store",
+            "label": "saved privately",
+            "finding_ids": [
+              "F0022"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "store",
+            "to": "saved",
+            "label": "name checked then placed",
+            "finding_ids": [
+              "F0021",
+              "F0022"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "How database sessions reach request handlers",
+        "description": "One shared connection pool is built from configuration, and each incoming request borrows a session and returns it when finished.",
+        "nodes": [
+          {
+            "id": "config",
+            "label": "Configuration settings",
+            "finding_ids": [
+              "F0027",
+              "F0028"
+            ]
+          },
+          {
+            "id": "engine",
+            "label": "Shared database pool",
+            "finding_ids": [
+              "F0004"
+            ]
+          },
+          {
+            "id": "session",
+            "label": "Per-request session",
+            "finding_ids": [
+              "F0004"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "config",
+            "to": "engine",
+            "label": "sets address",
+            "finding_ids": [
+              "F0004",
+              "F0028"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "engine",
+            "to": "session",
+            "label": "lends session",
+            "finding_ids": [
+              "F0004"
+            ],
+            "uncertain": false
+          }
+        ]
+      },
+      {
+        "title": "How failures are reported and logged",
+        "description": "When something goes wrong, the service returns a small JSON error containing a code, message, and request reference. Logs are written as single-line JSON with only approved fields.",
+        "nodes": [
+          {
+            "id": "failure",
+            "label": "Problem occurs",
+            "finding_ids": [
+              "F0012"
+            ]
+          },
+          {
+            "id": "reply",
+            "label": "Error reply",
+            "finding_ids": [
+              "F0012",
+              "F0013"
+            ]
+          },
+          {
+            "id": "logs",
+            "label": "Structured log line",
+            "finding_ids": [
+              "F0017",
+              "F0018",
+              "F0019"
+            ]
+          }
+        ],
+        "edges": [
+          {
+            "from": "failure",
+            "to": "reply",
+            "label": "reported as JSON",
+            "finding_ids": [
+              "F0012"
+            ],
+            "uncertain": false
+          },
+          {
+            "from": "failure",
+            "to": "logs",
+            "label": "recorded",
+            "finding_ids": [
+              "F0019"
+            ],
+            "uncertain": false
+          }
+        ]
+      }
+    ],
+    "layout_notes": []
+  },
+  "findings": {
+    "F0001": {
+      "statement": "Alembic migration environment loads the application's ORM metadata (Base.metadata from app.db.base) as the migration target and reads the database URL from application settings, so migrations are generated/applied against the same schema the models declare.",
+      "sources": [
+        "S0001",
+        "S0009"
+      ],
+      "uncertain": false
+    },
+    "F0002": {
+      "statement": "Migration env imports all model modules (ProcessingJob, Meeting, Recording, Summary, TranscriptSegment) solely so their tables register on Base.metadata; this is import-time registration, not evidence of runtime query usage.",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0003": {
+      "statement": "Migration env supports two modes: offline (run_migrations_offline emits SQL with literal bound parameters against settings.database_url) and online (run_migrations_online builds an engine from the Alembic config section and runs against a live connection).",
+      "sources": [
+        "S0001"
+      ],
+      "uncertain": false
+    },
+    "F0004": {
+      "statement": "Database access is provided through a SQLAlchemy engine created from settings.database_url with pool_pre_ping enabled and a session factory (SessionLocal) with autoflush disabled; get_db yields a session per request via a generator.",
+      "sources": [
+        "S0010"
+      ],
+      "uncertain": false
+    },
+    "F0005": {
+      "statement": "A Meetings table stores owner, title, lifecycle status constrained to draft/uploading/queued/transcribing/summarizing/ready/failed/deleted, timing fields, consent confirmation timestamp and policy version, and soft-delete deleted_at; an index on (owner_id, created_at, id) supports per-owner listing.",
+      "sources": [
+        "S0002",
+        "S0014"
+      ],
+      "uncertain": false
+    },
+    "F0006": {
+      "statement": "A Recordings table links one-to-one to a meeting (unique meeting_id, cascade delete) and records the stored object key, mime type, size (bounded to 100 MB), sha256, an upload idempotency key, upload timestamp, and purge_after for later deletion.",
+      "sources": [
+        "S0003",
+        "S0015"
+      ],
+      "uncertain": false
+    },
+    "F0007": {
+      "statement": "A ProcessingJobs table is one-to-one with a meeting and tracks worker leasing and retries: kind, stage, status constrained to pending/running/failed/completed, attempts vs max_attempts, run_after, lease_until, locked_by, last_error_code, plus an index on (status, run_after) that supports claiming due jobs.",
+      "sources": [
+        "S0003",
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0008": {
+      "statement": "Job retry bookkeeping was extended with manual_retry_count and manual_retry_window_at columns, described as tracking manual retry rate limits.",
+      "sources": [
+        "S0006",
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0009": {
+      "statement": "A cursor column on processing_jobs (added with the transcript stage, defaulting stage to 'transcribing' and cursor to 0) provides resumable progress tracking through transcription.",
+      "sources": [
+        "S0004",
+        "S0013"
+      ],
+      "uncertain": false
+    },
+    "F0010": {
+      "statement": "A TranscriptSegments table stores ordered, timestamped transcript text per meeting, with a unique (meeting_id, sequence_no) constraint and checks that sequence is non-negative and end_ms > start_ms, and it records the provider and model that produced each segment.",
+      "sources": [
+        "S0004",
+        "S0017"
+      ],
+      "uncertain": false
+    },
+    "F0011": {
+      "statement": "A Summaries table stores one validated summary per meeting as JSON content alongside schema_version, prompt_version, and model metadata, indicating summaries are versioned against both prompt and output schema.",
+      "sources": [
+        "S0005",
+        "S0016"
+      ],
+      "uncertain": false
+    },
+    "F0012": {
+      "statement": "API errors are returned as JSON with a nested error object containing code, message, and request_id; unhandled ApiError maps to its own status/code, while FastAPI request-validation failures map to HTTP 422 with code INVALID_INPUT.",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": false
+    },
+    "F0013": {
+      "statement": "The error_response helper derives the request_id from request.state.request_id, falling back to a freshly generated UUID when absent, implying request-id middleware exists elsewhere to populate request.state.",
+      "sources": [
+        "S0011"
+      ],
+      "uncertain": true
+    },
+    "F0014": {
+      "statement": "The cascade-delete foreign keys from recordings, processing_jobs, transcript_segments, and summaries to meetings mean removing a meeting row also removes its media metadata, job, transcript, and summary rows.",
+      "sources": [
+        "S0003",
+        "S0004",
+        "S0005",
+        "S0015",
+        "S0016",
+        "S0017"
+      ],
+      "uncertain": false
+    },
+    "F0015": {
+      "statement": "The models define columns for upload_key on meetings and idempotency_key/purge_after on recordings, indicating audio is uploaded to external object storage (keyed by object_key) and periodically purged, though the storage service code is not included in this batch.",
+      "sources": [
+        "S0003",
+        "S0014",
+        "S0015"
+      ],
+      "uncertain": false
+    },
+    "F0016": {
+      "statement": "The package is the 'Meeting Notes API'; migrations establish the meeting recording, transcription, summarization, and job-processing schema, but no runtime route handlers, workers, or storage client code are present in this batch, so end-to-end request flow is not directly observable here.",
+      "sources": [
+        "S0007",
+        "S0008",
+        "S0012"
+      ],
+      "uncertain": true
+    },
+    "F0017": {
+      "statement": "JsonFormatter renders each log record as a compact JSON object containing a UTC ISO timestamp derived from the record's creation time, the log level name, and the formatted message under the key 'event'.",
+      "sources": [
+        "S0018"
+      ],
+      "uncertain": false
+    },
+    "F0018": {
+      "statement": "JsonFormatter only copies an allow-listed set of metadata fields (request_id, meeting_id, job_id, stage, duration_ms, provider, attempt, error_code, status_code) from the LogRecord; fields whose value is None are omitted, and any field ending in '_id' is stringified. This limits what log output can carry but is the mechanism that avoids emitting unselected metadata.",
+      "sources": [
+        "S0018"
+      ],
+      "uncertain": false
+    },
+    "F0019": {
+      "statement": "configure_logging sets the root logger level to INFO, installs a single StreamHandler with JsonFormatter, and replaces the root handler list; a filter restricts emission to loggers whose name starts with 'app.', so records from other libraries are dropped by that handler.",
+      "sources": [
+        "S0018"
+      ],
+      "uncertain": false
+    },
+    "F0020": {
+      "statement": "Storage stores recordings as private files on the local filesystem under a configurable root (settings.local_recording_dir, else <app>/.data/recordings), creating/chmodding the root to mode 0o700 in __init__.",
+      "sources": [
+        "S0020",
+        "S0021"
+      ],
+      "uncertain": false
+    },
+    "F0021": {
+      "statement": "Object keys are constrained by OBJECT_KEY, a regex requiring a UUID/UUID/UUID.ext layout with an allowed audio extension (webm, ogg, m4a, wav, mp3). _path validates the key against this regex and additionally rejects paths that escape the root, raising ApiError 500 STORAGE_KEY_INVALID otherwise.",
+      "sources": [
+        "S0020"
+      ],
+      "uncertain": false
+    },
+    "F0022": {
+      "statement": "Storage.upload copies a source file into a temporary file in the destination's parent directory, chmods it to 0o600, then atomically os.replace's it into place; OSError during the copy raises ApiError 503 STORAGE_UPLOAD_FAILED, and the temporary file is always unlinked in finally.",
+      "sources": [
+        "S0020"
+      ],
+      "uncertain": false
+    },
+    "F0023": {
+      "statement": "Storage.delete removes the file (unlink with missing_ok) and then attempts rmdir on both the parent and grandparent directories, ignoring OSError so non-empty directories are left in place.",
+      "sources": [
+        "S0020"
+      ],
+      "uncertain": false
+    },
+    "F0024": {
+      "statement": "Storage.download copies a stored object to a caller-supplied destination path via shutil.copyfile.",
+      "sources": [
+        "S0020"
+      ],
+      "uncertain": false
+    },
+    "F0025": {
+      "statement": "Storage.list_objects walks the root recursively and yields (key, mtime-as-UTC datetime) pairs, skipping directories, symlinks, and any path whose relative key does not match OBJECT_KEY; it returns immediately if the root does not exist.",
+      "sources": [
+        "S0020"
+      ],
+      "uncertain": false
+    },
+    "F0026": {
+      "statement": "get_storage is an lru_cache-wrapped factory returning a shared Storage instance, so one Storage root is reused across callers in a process.",
+      "sources": [
+        "S0020"
+      ],
+      "uncertain": false
+    },
+    "F0027": {
+      "statement": "Settings is a frozen dataclass populated at import time from environment variables via load_dotenv(), exposing database_url, allowed_web_origin, local_recording_dir, provider keys (openai_api_key, kyma_api_key), STT model/provider selectors, summary provider/model selectors, local Whisper and Cohere base URLs and model labels, retention hours/days, and per-hour rate limits (max_meetings_per_hour, max_uploads_per_hour, max_manual_retries_per_hour) and metrics_token.",
+      "sources": [
+        "S0021"
+      ],
+      "uncertain": false
+    },
+    "F0028": {
+      "statement": "A module-level singleton `settings = Settings()` is created at import, so configuration is read once per process and later environment changes are not reflected.",
+      "sources": [
+        "S0021"
+      ],
+      "uncertain": false
+    },
+    "F0029": {
+      "statement": "The services package is a namespace package documented as holding provider and media services; it contains no runtime logic in this excerpt.",
+      "sources": [
+        "S0019"
+      ],
+      "uncertain": false
+    },
+    "F0030": {
+      "statement": "Storage is described as private recordings shared by the API and worker, implying both processes reach the same local filesystem root; this is an inferred cross-component relationship from the docstring and config, not observed call wiring.",
+      "sources": [
+        "S0020"
+      ],
+      "uncertain": true
+    },
+    "F0031": {
+      "statement": "The configured provider choices (openai, whisper-local at 127.0.0.1:7777, cohere-local at 127.0.0.1:7778, kymaapi.com) and retention/rate-limit values indicate external transcription and summarization systems and quota controls exist, but no runtime call sites are present in these excerpts.",
+      "sources": [
+        "S0021",
+        "S0020"
+      ],
+      "uncertain": true
+    }
+  },
+  "sources": {
+    "S0001": {
+      "id": "S0001",
+      "path": "apps/api/alembic/env.py",
+      "start": 1,
+      "end": 49
+    },
+    "S0002": {
+      "id": "S0002",
+      "path": "apps/api/alembic/versions/0001_meetings.py",
+      "start": 1,
+      "end": 45
+    },
+    "S0003": {
+      "id": "S0003",
+      "path": "apps/api/alembic/versions/0002_recordings_jobs.py",
+      "start": 1,
+      "end": 71
+    },
+    "S0004": {
+      "id": "S0004",
+      "path": "apps/api/alembic/versions/0003_transcript.py",
+      "start": 1,
+      "end": 50
+    },
+    "S0005": {
+      "id": "S0005",
+      "path": "apps/api/alembic/versions/0004_summaries.py",
+      "start": 1,
+      "end": 38
+    },
+    "S0006": {
+      "id": "S0006",
+      "path": "apps/api/alembic/versions/0005_retry_limits.py",
+      "start": 1,
+      "end": 29
+    },
+    "S0007": {
+      "id": "S0007",
+      "path": "apps/api/app/__init__.py",
+      "start": 1,
+      "end": 1
+    },
+    "S0008": {
+      "id": "S0008",
+      "path": "apps/api/app/db/__init__.py",
+      "start": 1,
+      "end": 1
+    },
+    "S0009": {
+      "id": "S0009",
+      "path": "apps/api/app/db/base.py",
+      "start": 1,
+      "end": 5
+    },
+    "S0010": {
+      "id": "S0010",
+      "path": "apps/api/app/db/session.py",
+      "start": 1,
+      "end": 14
+    },
+    "S0011": {
+      "id": "S0011",
+      "path": "apps/api/app/errors.py",
+      "start": 1,
+      "end": 28
+    },
+    "S0012": {
+      "id": "S0012",
+      "path": "apps/api/app/models/__init__.py",
+      "start": 1,
+      "end": 1
+    },
+    "S0013": {
+      "id": "S0013",
+      "path": "apps/api/app/models/job.py",
+      "start": 1,
+      "end": 37
+    },
+    "S0014": {
+      "id": "S0014",
+      "path": "apps/api/app/models/meeting.py",
+      "start": 1,
+      "end": 39
+    },
+    "S0015": {
+      "id": "S0015",
+      "path": "apps/api/app/models/recording.py",
+      "start": 1,
+      "end": 27
+    },
+    "S0016": {
+      "id": "S0016",
+      "path": "apps/api/app/models/summary.py",
+      "start": 1,
+      "end": 22
+    },
+    "S0017": {
+      "id": "S0017",
+      "path": "apps/api/app/models/transcript.py",
+      "start": 1,
+      "end": 37
+    },
+    "S0018": {
+      "id": "S0018",
+      "path": "apps/api/app/observability.py",
+      "start": 1,
+      "end": 40
+    },
+    "S0019": {
+      "id": "S0019",
+      "path": "apps/api/app/services/__init__.py",
+      "start": 1,
+      "end": 1
+    },
+    "S0020": {
+      "id": "S0020",
+      "path": "apps/api/app/services/storage.py",
+      "start": 1,
+      "end": 79
+    },
+    "S0021": {
+      "id": "S0021",
+      "path": "apps/api/app/settings.py",
+      "start": 1,
+      "end": 38
+    }
+  },
+  "metadata": {
+    "revision": "3f279169c3843b77bf5932f79bb601f7bff74120",
+    "generated_at": "2026-10-19T00:31:12.507589+00:00",
+    "model": "deepseek-v4.1-flash",
+    "model_responses": [
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      },
+      {
+        "requested": "deepseek-v4.1-flash",
+        "reported": "deepseek-v4.1-flash",
+        "kyma_served": "deepseek-v4.1-flash"
+      }
+    ],
+    "local_changes": false,
+    "repository_url": "https://github.com/Justin-Mendoza/AI-Notetaker"
+  }
+}

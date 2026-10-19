@@ -1,0 +1,10 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["A step fails"]
+  n1["Temporary or<br/>permanent?"]
+  n2["Wait, then try<br/>again"]
+  n3["Mark job and<br/>meeting failed"]
+  n0 -.->|"error code<br/>reports type"| n1
+  n1 -.->|"temporary, tries<br/>left"| n2
+  n1 -.->|"permanent or out<br/>of tries"| n3
+  n2 -.->|"fails again"| n1

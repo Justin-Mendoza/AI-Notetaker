@@ -1,0 +1,9 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Capture audio<br/>pieces"]
+  n1["Hold pieces in<br/>memory"]
+  n2["Save pieces in<br/>browser"]
+  n3["Offer recovery"]
+  n0 -->|"collect chunks"| n1
+  n0 -->|"store to browser"| n2
+  n2 -.->|"restore on<br/>reopen"| n3

@@ -1,0 +1,9 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Declared data<br/>models"]
+  n1["Migration runner"]
+  n2["Configuration<br/>settings"]
+  n3["Database<br/>structure"]
+  n0 -->|"declares target<br/>shape"| n1
+  n2 -->|"supplies address"| n1
+  n1 -->|"applies changes"| n3

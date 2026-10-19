@@ -1,0 +1,12 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Meeting record"]
+  n1["Stored recording<br/>info"]
+  n2["Processing job"]
+  n3["Transcript<br/>segments"]
+  n4["Generated<br/>summary"]
+  n0 -->|"has one"| n1
+  n0 -->|"has one"| n2
+  n0 -->|"has many"| n3
+  n0 -->|"has one"| n4
+  n0 -->|"delete cascades"| n1

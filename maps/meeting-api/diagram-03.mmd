@@ -1,0 +1,13 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Local user<br/>client"]
+  n1["Live piece<br/>handler"]
+  n2["Cut fixed audio<br/>window"]
+  n3["Build speech<br/>text"]
+  n4["Save numbered<br/>segment"]
+  n5["Read full<br/>transcript"]
+  n0 -->|"Sends audio<br/>piece"| n1
+  n1 -->|"Requests the<br/>window"| n2
+  n2 -->|"Passes audio<br/>clip"| n3
+  n3 -->|"Returns text"| n4
+  n4 -->|"Adds to<br/>transcript"| n5

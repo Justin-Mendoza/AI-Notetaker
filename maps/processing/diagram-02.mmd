@@ -1,0 +1,9 @@
+%%{init: {"themeVariables": {"fontSize": "22px"}}}%%
+flowchart TD
+  n0["Claim job with a<br/>lease"]
+  n1["Renew the lease"]
+  n2["Confirm job<br/>still valid"]
+  n3["Store transcript<br/>pieces"]
+  n0 -.->|"starts renewing"| n1
+  n1 -.->|"reports still<br/>yours"| n2
+  n2 -.->|"allows saving"| n3
