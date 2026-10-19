@@ -244,16 +244,17 @@ def seed_result(path, repo, owned, config):
 def build_map(repo, target, previous, mid, spec, config, client, revision, changed, seed=None, context=None, rerender=False):
     snippets, coverage = base.scan(repo, config, scope_files=set(spec['files']), priority_files=set(changed))
     before = client.calls if client else 0
+    hits_before = getattr(client, 'cache_hits', 0) if client else 0
     if seed:
         result, findings, sources = seed_result(seed, repo, set(spec['files']), config)
         processed = list(sources)
         coverage['scope'] = 'Locally authored seed; evidence references checked. Source interpretation needs review.'
     else:
         findings, processed = base.analyze(snippets, config, client, context=context)
-        result = base.synthesize(findings, config, client, context=context)
+        result = base.synthesize(findings, config | {'_call_start': before}, client, context=context)
         sources = {s['id']: {k: v for k, v in s.items() if k != 'text'} for s in snippets if s['id'] in processed}
     calls = client.calls - before if client else 0
-    coverage.update({'analyzed_files': len({s['path'] for s in sources.values()}), 'api_calls': calls,
+    coverage.update({'checkpoint_hits': (getattr(client, 'cache_hits', 0) - hits_before) if client else 0, 'analyzed_files': len({s['path'] for s in sources.values()}), 'api_calls': calls,
                      'usage': client.usage[before:] if client else [], 'limits': config,
                      'not_analyzed_due_to_call_budget': [s['path'] for s in snippets if s['id'] not in processed]})
     if seed:
@@ -333,6 +334,7 @@ def write_index(state, specs, entries, revision, source_state, staged_maps, rere
 
 
 def update(repo, state, config, force=False, plan_only=False, client=None, seed_dir=None):
+    base.check_checkpoint_location(repo)
     state.mkdir(parents=True, exist_ok=True)
     current, old = plan(repo, state, config, force)
     if current['stale']:
@@ -374,7 +376,7 @@ def update(repo, state, config, force=False, plan_only=False, client=None, seed_
                 context['previous_map'] = json.loads((previous / 'map.json').read_text())['map']
             print(f'Updating subsystem {mid} ({index + 1}/{len(affected)}); API call budget: {budget}', flush=True)
             try:
-                entries[mid] = build_map(repo, staged / mid, previous, mid, spec, config | {'max_calls': budget}, client,
+                entries[mid] = build_map(repo, staged / mid, previous, mid, spec, config | {'max_calls': budget, '_checkpoint_bypass': force}, client,
                                          current['revision'], current['changed_files'], seed, context, rerender=current['full_refresh'])
             except base.MapError as error:
                 raise base.MapError(f'subsystem {mid}: {error}') from None
@@ -392,7 +394,7 @@ def update(repo, state, config, force=False, plan_only=False, client=None, seed_
                     'updates_since_refresh': 0 if current['full_refresh'] else old['updates_since_refresh'] + bool(affected),
                     'unassigned_files': current['unassigned_files'], 'skipped_files': current['skipped_files']}
         report = {k: current[k] for k in ('revision', 'affected', 'removed', 'changed_files', 'full_refresh', 'unassigned_files', 'skipped_files')}
-        report.update({'api_calls': client.calls if client else 0, 'usage': client.usage if client else [], 'seeded_locally': seeded,
+        report.update({'checkpoint_hits': getattr(client, 'cache_hits', 0) if client else 0, 'api_calls': client.calls if client else 0, 'usage': client.usage if client else [], 'seeded_locally': seeded,
                        'dependency_policy': 'Changed maps and all transitive known dependents are rechecked. Unchanged presentations reuse PNG/PDF files.'})
         (staged_state / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
         (staged_state / 'update.json').write_text(json.dumps(report, indent=2) + '\n')

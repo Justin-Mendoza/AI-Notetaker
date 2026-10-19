@@ -31,7 +31,9 @@ jobs:
       REPO_MAP_SOURCE_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
       - name: Set map state path
-        run: printf 'MAP_STATE=%s/repo-map-state\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+        run: |
+          printf 'MAP_STATE=%s/repo-map-state\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'REPO_MAP_CHECKPOINTS=%s/repo-map-checkpoints\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Check out source history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -50,7 +52,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python .repo-map/state.py prepare --repo . --state "$MAP_STATE"
+      - name: Restore validated analysis checkpoints
+        continue-on-error: true
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}/repo-map-checkpoints
+          key: repo-map-analysis-v1-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            repo-map-analysis-v1-${{ runner.os }}-${{ github.ref_name }}-
       - name: Update affected subsystem maps
+        id: analysis
         env:
           LLM_API_KEY: ${{ secrets.KYMA_API_KEY }}
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.kymaapi.com/v1' }}
@@ -60,6 +71,13 @@ jobs:
           args=()
           if [ "$FULL_REFRESH" = "true" ]; then args+=(--full); fi
           python .repo-map/incremental.py --repo . --state "$MAP_STATE" "${args[@]}"
+      - name: Save checkpoints even when analysis fails
+        if: always() && (steps.analysis.outcome == 'success' || steps.analysis.outcome == 'failure')
+        continue-on-error: true
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}/repo-map-checkpoints
+          key: repo-map-analysis-v1-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Publish updated maps
         env:
           GH_TOKEN: ${{ github.token }}

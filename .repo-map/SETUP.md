@@ -102,3 +102,11 @@ Long node and edge labels are shortened automatically for display. Their full wo
 The main view explains what a feature does, what starts it, and what it produces in familiar words. Internal class names and configuration details belong in source evidence or focused follow-up views. Each overview section includes a short explanation above its diagram. Dashed arrows identify connections that need confirmation; a reading key explains them once per diagram.
 
 Descriptions longer than 40 words or 500 display characters are shortened automatically. Full explanations remain in layout notes. Titles and labels are also compacted for display. Structural errors, ambiguous duplicate IDs, missing evidence, and credential checks still stop publication with a specific diagnostic.
+
+### Recover without restarting the entire analysis
+
+`max_repair_calls` defaults to 1 (set it to 0 to disable). If synthesis produces a graph with missing evidence, duplicate IDs, or another validation error, one repair request receives the error and original findings. It must return a fully validated graph. Unsupported relationships are not published. The repair uses the existing subsystem and total call budgets; available repair capacity is reserved when the budget permits it. Transport failures and provider timeouts are not automatically retried.
+
+The workflow uses a separate GitHub Actions cache for validated analysis batches and subsystem synthesis. It restores checkpoints before analysis and saves them even if a later subsystem or renderer fails. The next run reuses matching requests rather than paying to analyze the same excerpts again. Checkpoints contain normalized findings and map output, not API keys or raw source excerpts. Keys include exact request content, model/endpoint, output options, and generator version. A manual full refresh deliberately bypasses reuse. Cache eviction, outages, generator changes, or changed inputs can still require fresh calls.
+
+For local CLI use, set `REPO_MAP_CHECKPOINTS` to a temporary directory outside the repository to enable checkpoints. Coverage and update JSON report `checkpoint_hits`; logs distinguish reused from freshly analyzed batches. The last successful published map is preserved if repair fails. Install the updated workflow as well as the updated scripts to retain checkpoints across GitHub runners.

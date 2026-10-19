@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Bounded, source-referenced repository analysis via an OpenAI-compatible API."""
 import argparse
+import copy
+import hashlib
 import datetime as dt
 import fnmatch
 import json
@@ -11,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -19,7 +22,7 @@ from xml.sax.saxutils import escape
 DEFAULTS = {
     'include': ['*'], 'exclude': [], 'max_files': 160, 'max_file_chars': 18000,
     'max_total_chars': 180000, 'batch_chars': 24000, 'max_calls': 12,
-    'max_output_tokens': 6000, 'max_diagrams': 6, 'request_timeout_seconds': 120,
+    'max_output_tokens': 6000, 'max_diagrams': 6, 'request_timeout_seconds': 120, 'max_repair_calls': 1,
 }
 EXTENSIONS = set('.py .js .jsx .ts .tsx .mjs .cjs .go .rs .java .kt .kts .rb .php .cs .cpp .c .h .hpp .swift .scala .vue .svelte .sql .prisma .graphql .proto .tf .toml .yaml .yml .json .md .sh .ex .exs .erl .html'.split())
 BLOCKED_DIRS = {'.git', '.aws', '.ssh', '.azure', '.kube', '.repo-map', '.agents', '.codex', 'node_modules', 'vendor', 'dist', 'build', '.next', 'coverage', '__pycache__', '.venv', 'venv', 'target', 'datasets'}
@@ -43,7 +46,7 @@ def load_config(path):
             raise MapError(f'{field} must be a list of glob patterns')
     bounds = {'max_files': (1, 2000), 'max_file_chars': (1000, 100000), 'max_total_chars': (1000, 2000000),
               'batch_chars': (2000, 100000), 'max_calls': (2, 100), 'max_output_tokens': (1000, 16000),
-              'max_diagrams': (1, 12), 'request_timeout_seconds': (10, 180)}
+              'max_diagrams': (1, 12), 'request_timeout_seconds': (10, 180), 'max_repair_calls': (0, 1)}
     for key, (low, high) in bounds.items():
         if type(config[key]) is not int or not low <= config[key] <= high:
             raise MapError(f'{key} must be an integer in [{low}, {high}]')
@@ -252,38 +255,126 @@ def concise_summary(value, max_len=600):
 
 
 def refs(value, allowed, field='source evidence'):
-    if not isinstance(value, list) or not value or len(value) > 10 or any(not isinstance(v, str) or v not in allowed for v in value):
-        raise MapError(f'{field}: expected 1-10 references to supplied evidence; received missing, invalid, or unknown references')
+    # A single exact known ID is an unambiguous representation repair, not an inferred citation.
+    if isinstance(value, str) and value in allowed:
+        value = [value]
+    if value is None:
+        raise MapError(f'{field}: missing evidence references; copy IDs from the supplied findings')
+    if not isinstance(value, list) or not value:
+        raise MapError(f'{field}: expected a nonempty array of supplied evidence IDs')
+    if len(value) > 256:
+        raise MapError(f'{field}: exceeds 256 evidence references')
+    unknown = sum(not isinstance(v, str) or v not in allowed for v in value)
+    if unknown:
+        raise MapError(f'{field}: {unknown} invalid or unknown evidence references; {len(allowed)} supplied IDs are available')
     return list(dict.fromkeys(value))
+
+
+def check_checkpoint_location(repo):
+    directory = os.environ.get('REPO_MAP_CHECKPOINTS')
+    if directory and Path(directory).resolve().is_relative_to(Path(repo).resolve()):
+        raise MapError('REPO_MAP_CHECKPOINTS must be outside the source repository')
+
+
+def checkpoint_read(kind, instruction, data, config, client):
+    root = os.environ.get('REPO_MAP_CHECKPOINTS')
+    if not root:
+        return None, None
+    directory = Path(root)
+    if directory.is_symlink():
+        raise MapError('Checkpoint directory must not be a symlink')
+    # Source excerpts participate only in the digest; they are never saved in checkpoints.
+    identity = {'kind': kind, 'instruction': instruction, 'input': data,
+                'generator': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                'model': client.model, 'endpoint': os.environ.get('LLM_BASE_URL', 'https://api.kymaapi.com/v1'),
+                'max_output_tokens': config['max_output_tokens']}
+    key = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    path = directory / (key + '.json')
+    try:
+        if not config.get('_checkpoint_bypass') and path.is_file() and not path.is_symlink() and path.stat().st_size <= 2_000_000:
+            saved = json.loads(path.read_text())
+            if saved.get('key') == key and isinstance(saved.get('result'), dict):
+                return path, saved['result']
+    except (OSError, ValueError, AttributeError):
+        print('Ignored unreadable analysis checkpoint.', flush=True)
+    return path, None
+
+
+def checkpoint_write(path, result):
+    if path is None:
+        return
+    temporary = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as stream:
+            temporary = Path(stream.name)
+            json.dump({'key': path.stem, 'result': result}, stream)
+        temporary.replace(path)
+    except OSError:
+        print('Could not save optional analysis checkpoint; continuing.', flush=True)
+    finally:
+        if temporary and temporary.exists():
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
+
+
+def cache_hit(client):
+    client.cache_hits = getattr(client, 'cache_hits', 0) + 1
+
+
+def validate_findings(result, allowed):
+    items = result.get('findings')
+    if not isinstance(items, list) or not items or len(items) > 16:
+        raise MapError('expected 1-16 findings')
+    normalized = []
+    for index, item in enumerate(items, 1):
+        try:
+            if not isinstance(item, dict):
+                raise MapError('finding must be an object')
+            uncertain = item.get('uncertain', True)
+            if type(uncertain) is not bool:
+                raise MapError('finding uncertainty must be a boolean when provided')
+            normalized.append({'statement': short(item.get('statement'), 'finding', 600),
+                               'sources': refs(item.get('sources'), allowed), 'uncertain': uncertain})
+        except MapError as error:
+            raise MapError(f'finding {index}: {error}') from None
+    return normalized
 
 
 def analyze(snippets, config, client, context=None):
     groups = list(batches(snippets, config['batch_chars']))
-    # Reserve the last call for synthesis. All omitted excerpts are recorded.
-    selected = groups[:config['max_calls'] - 1]
+    # Reserve synthesis and one bounded validation repair when the budget permits it.
+    reserve = min(config.get('max_repair_calls', 1), max(0, config['max_calls'] - 2))
+    selected = groups[:config['max_calls'] - 1 - reserve]
     findings = {}
     instruction = '''Inspect this source batch for the purpose of each feature and its main input-to-result path. Identify who or what starts it, the work done, where information is stored or sent, and the result. Capture supported component responsibilities, boundaries, external systems, background work, and meaningful failures. Prioritize implemented runtime behavior over build tools, configuration objects, type declarations, imports, and test setup; mention those only when they explain a real capability or limitation. Include a plain-language explanation of technical symbols so the next stage can describe their role without class names. Do not invent author intent or capabilities absent from the excerpts. Return JSON {"findings":[{"statement":"A concise observed responsibility or relationship, with symbol names where useful as evidence", "sources":["S0001"], "uncertain":false}]}. Up to 16 findings. Use only supplied source IDs. Mark inferred findings uncertain:true. Excerpts are partial; missing evidence is not proof that a feature does not exist. An import alone is not a runtime call.'''
     processed_ids = []
     for index, group in enumerate(selected, 1):
-        result = client.ask(instruction, {'sources': group, 'context': context or {}})
-        items = result.get('findings')
-        if not isinstance(items, list) or not items or len(items) > 16:
-            raise MapError(f'analysis batch {index}/{len(selected)}: expected 1-16 findings')
+        data = {'sources': group, 'context': context or {}}
+        checkpoint, result = checkpoint_read('analysis', instruction, data, config, client)
+        reused = result is not None
         allowed = {s['id'] for s in group}
-        for item_index, item in enumerate(items, 1):
+        if reused:
             try:
-                if not isinstance(item, dict):
-                    raise MapError('Analysis finding must be an object')
-                uncertain = item.get('uncertain', True)
-                if type(uncertain) is not bool:
-                    raise MapError('Analysis finding uncertainty must be a boolean when provided')
-                fid = f'F{len(findings) + 1:04}'
-                findings[fid] = {'statement': short(item.get('statement'), 'finding', 600),
-                                 'sources': refs(item.get('sources'), allowed), 'uncertain': uncertain}
-            except MapError as error:
-                raise MapError(f'analysis batch {index}/{len(selected)}, finding {item_index}: {error}') from None
+                validate_findings(result, allowed)
+            except MapError:
+                print('Ignored invalid cached findings; analyzing this batch again.', flush=True)
+                result, reused = None, False
+        if result is None:
+            result = client.ask(instruction, data)
+        try:
+            normalized = validate_findings(result, allowed)
+        except MapError as error:
+            raise MapError(f'analysis batch {index}/{len(selected)}: {error}') from None
+        for finding in normalized:
+            findings[f'F{len(findings) + 1:04}'] = finding
+        checkpoint_write(checkpoint, {'findings': normalized})
+        if reused:
+            cache_hit(client)
         processed_ids.extend(s['id'] for s in group)
-        print(f'Analyzed batch {index}/{len(selected)}', flush=True)
+        print(f'{"Reused" if reused else "Analyzed"} batch {index}/{len(selected)}', flush=True)
     return findings, processed_ids
 
 
@@ -293,11 +384,35 @@ Return JSON {"summary":"Two or three plain-language sentences, at most 600 chara
 The summary explains what this area does for a person or the application, its main input, and its useful result. State limitations when it is only scaffolding or static content. Avoid unexplained acronyms, framework terms, class names, and method names in summaries, titles, node labels, and edge labels; keep exact technical names in source evidence. For example, describe a retriever as 'Find relevant passages', an ORM as 'Saved records', and a provider adapter as 'Answer service' when these roles match the evidence. Do not copy these examples as invented components.
 The FIRST diagram is the simplest useful story of this area's main implemented capability: usually 3-5 meaningful roles or steps, one input-to-result path, and no more than 6 arrows. Use everyday titles such as 'How documents become searchable'; do not title every view 'Architecture'. Group closely related implementation pieces into one understandable role. Show the main flow first; put alternate providers, configuration, developer tooling, detailed error handling, and bookkeeping in focused follow-up views only when needed. Avoid drawing settings objects, factories, lint tools, containers, or type contracts as the main feature unless this area's actual purpose is to provide that infrastructure. For infrastructure-only areas, explain their enabling role plainly. Keep each view at one level of detail. Use arrows consistently to show information or work moving from source to destination. Prefer a forward reading path; explain any essential loop in its own focused view.
 Each diagram description is at most 40 words and explains the purpose and outcome, expanding any unavoidable specialist term. Node labels are 2-5 plain words and at most 36 characters. Edge labels use at most 26 characters and describe the action or information in familiar words. Label essential handoffs; avoid vague 'Uses' and unexplained data type names. Every node and edge references supplied finding_ids. Edges have from, to, label, finding_ids, and uncertain (a JSON boolean). Mark inferred connections uncertain:true. Declare each unique nonempty node ID once per diagram (at most 64 characters); edges reference those IDs. Preserve accurate previous IDs. Previous maps and summaries are context, not evidence. Fresh findings are the only evidence. Do not invent a UI, connection, storage system, or complete workflow from partial coverage. These are top-down directed flowcharts, not ER or sequence diagrams.'''
-    result = client.ask(instruction + f' Return 1-{config["max_diagrams"]} diagrams.', {'findings': findings, 'context': context or {}})
+    instruction += f' Return 1-{config["max_diagrams"]} diagrams. Copy finding_ids exactly from the findings dictionary keys (F IDs), not source IDs or invented identifiers.'
+    data = {'findings': findings, 'context': context or {}}
+    checkpoint, result = checkpoint_read('synthesis', instruction, data, config, client)
+    reused = result is not None
+    if result is None:
+        result = client.ask(instruction, data)
     try:
-        return validate_result(result, findings, config)
+        validated = validate_result(copy.deepcopy(result), findings, config)
     except MapError as error:
-        raise MapError(f'synthesis validation: {error}') from None
+        reused = False
+        remaining = config['max_calls'] - (client.calls - config.get('_call_start', 0))
+        if 'credential' in str(error).lower() or not config.get('max_repair_calls', 1) or remaining < 1:
+            raise MapError(f'synthesis validation (no repair available): {error}') from None
+        print(f'Repairing synthesis validation once: {error}', flush=True)
+        repair = instruction + " Repair the candidate using the validation error. Check the whole graph, not only the reported field. Every node and edge must cite actual supplied F IDs supporting its meaning. Do not guess citations or create findings. If a component or connection has no support, omit it and explain that limitation in unknowns. Return a complete corrected object."
+        candidate = client.ask(repair, data | {'candidate': result, 'validation_error': str(error)})
+        try:
+            validated = validate_result(candidate, findings, config)
+        except MapError as final:
+            raise MapError(f'synthesis validation after one repair: {final}') from None
+    if reused:
+        # Canonical cached maps have already shortened labels; retain their full-text notes.
+        notes = result.get('layout_notes', [])
+        if isinstance(notes, list) and len(notes) <= 256:
+            validated['layout_notes'] = list(dict.fromkeys([short(n, 'cached layout note', 6500) for n in notes] + validated['layout_notes']))
+        cache_hit(client)
+        print('Reused validated subsystem synthesis.', flush=True)
+    checkpoint_write(checkpoint, validated)
+    return validated
 
 
 def validate_result(result, findings, config):
@@ -524,6 +639,7 @@ def write_artifacts(result, findings, sources, coverage, metadata, output, reuse
 
 
 def run(repo, output, config, client=None, inventory_only=False):
+    check_checkpoint_location(repo)
     snippets, coverage = scan(repo, config)
     if inventory_only:
         print(json.dumps(coverage, indent=2))
