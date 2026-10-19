@@ -6,6 +6,8 @@ from pathlib import Path
 from app.errors import ApiError
 
 MAX_DURATION_MS = 120 * 60 * 1000
+# Compressed audio can include encoder delay and trailing frame padding.
+ENCODER_PADDING_MS = 250
 MAX_FILE_BYTES = 100_000_000
 
 MIME_SIGNATURES = {
@@ -110,6 +112,6 @@ def inspect_audio(path: Path, claimed_mime: str) -> tuple[str, int]:
     except (OSError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired) as exc:
         raise ApiError(415, "INVALID_MEDIA", "The recording could not be read") from exc
     duration_ms = math.ceil(duration * 1000)
-    if duration_ms > MAX_DURATION_MS:
+    if duration_ms > MAX_DURATION_MS + ENCODER_PADDING_MS:
         raise ApiError(413, "DURATION_LIMIT", "Recordings must be 120 minutes or shorter")
-    return mime_type, duration_ms
+    return mime_type, min(duration_ms, MAX_DURATION_MS)

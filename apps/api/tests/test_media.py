@@ -6,7 +6,23 @@ from app.errors import ApiError
 from app.services import media
 
 
-def test_probe_rejects_audio_over_two_hours(tmp_path, monkeypatch):
+@pytest.mark.parametrize("duration", ["7200", "7200.072", "7200.250"])
+def test_probe_allows_encoder_padding_at_two_hour_limit(tmp_path, monkeypatch, duration):
+    path = tmp_path / "sample.mp3"
+    path.write_bytes(b"ID3" + b"audio")
+    monkeypatch.setattr(
+        media.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0,
+            stdout='{"streams":[{"codec_type":"audio"}],"format":{"duration":"' + duration + '"}}',
+        ),
+    )
+    assert media.inspect_audio(path, "audio/mpeg") == ("audio/mpeg", 7_200_000)
+
+
+@pytest.mark.parametrize("duration", ["7200.251", "7201"])
+def test_probe_rejects_audio_over_two_hours(tmp_path, monkeypatch, duration):
     path = tmp_path / "sample.wav"
     path.write_bytes(b"RIFFxxxxWAVE")
     monkeypatch.setattr(
@@ -14,7 +30,7 @@ def test_probe_rejects_audio_over_two_hours(tmp_path, monkeypatch):
         "run",
         lambda *args, **kwargs: SimpleNamespace(
             returncode=0,
-            stdout='{"streams":[{"codec_type":"audio"}],"format":{"duration":"7201"}}',
+            stdout='{"streams":[{"codec_type":"audio"}],"format":{"duration":"' + duration + '"}}',
         ),
     )
     with pytest.raises(ApiError) as error:
