@@ -218,6 +218,23 @@ def display_label(value, name, max_len, notes):
     return compact
 
 
+def display_description(value, name, notes):
+    full = short(value, name, 6000)
+    words = full.split()
+    description = ' '.join(words[:40])
+    if len(description) > 500:
+        description = description[:499].rsplit(' ', 1)[0].rstrip(' ,;:-') + '…'
+    elif len(words) > 40:
+        description = description.rstrip(' ,;:-') + '…'
+    if len(words) > 40 or len(' '.join(words)) > 500:
+        notes.append(f'{name} full explanation: {full}')
+    return description
+
+
+def diagram_legend(diagram):
+    return 'Read from top to bottom. Dashed arrows show connections that need confirmation.' if any(e['uncertain'] for e in diagram['edges']) else 'Read from top to bottom; arrows show what happens next or what is passed along.'
+
+
 def concise_summary(value, max_len=600):
     if not isinstance(value, str) or not value.strip() or any(ord(c) < 32 and c != '\n' for c in value):
         raise MapError('Invalid summary')
@@ -245,7 +262,7 @@ def analyze(snippets, config, client, context=None):
     # Reserve the last call for synthesis. All omitted excerpts are recorded.
     selected = groups[:config['max_calls'] - 1]
     findings = {}
-    instruction = '''Inspect this source batch to explain the existing architecture: component responsibilities, public entry points, subsystem boundaries, orchestration versus domain logic, owned data and persistence, external integrations, synchronous versus asynchronous communication, and important failure boundaries. Capture representative end-to-end interactions that explain how these parts cooperate. Prioritize architectural relationships over an inventory of individual functions, imports, files, or UI clicks. Record constraints or design rationale only when explicitly supported by source or documentation; do not infer author intent. Return JSON {"findings":[{"statement":"A concise actual relationship or behavior", "sources":["S0001"], "uncertain":false}]}. Up to 16 findings. Use only supplied source IDs. Include uncertain:true for inferred findings; if uncertainty is omitted, the pipeline conservatively treats the finding as uncertain. Excerpts are partial; absence from them is not proof a feature does not exist. Do not treat an import as a runtime call. Include symbol names in statements where helpful.'''
+    instruction = '''Inspect this source batch for the purpose of each feature and its main input-to-result path. Identify who or what starts it, the work done, where information is stored or sent, and the result. Capture supported component responsibilities, boundaries, external systems, background work, and meaningful failures. Prioritize implemented runtime behavior over build tools, configuration objects, type declarations, imports, and test setup; mention those only when they explain a real capability or limitation. Include a plain-language explanation of technical symbols so the next stage can describe their role without class names. Do not invent author intent or capabilities absent from the excerpts. Return JSON {"findings":[{"statement":"A concise observed responsibility or relationship, with symbol names where useful as evidence", "sources":["S0001"], "uncertain":false}]}. Up to 16 findings. Use only supplied source IDs. Mark inferred findings uncertain:true. Excerpts are partial; missing evidence is not proof that a feature does not exist. An import alone is not a runtime call.'''
     processed_ids = []
     for index, group in enumerate(selected, 1):
         result = client.ask(instruction, {'sources': group, 'context': context or {}})
@@ -271,7 +288,11 @@ def analyze(snippets, config, client, context=None):
 
 
 def synthesize(findings, config, client, context=None):
-    instruction = '''Build a source-backed architectural explanation using ONLY the supplied findings. Explain what this subsystem does, how responsibilities are divided, and how it fits into the wider application. Favor components, services, stores, queues, and external actors over individual functions or files. Keep one consistent level of abstraction within each view. Return JSON {"summary":"Two or three concise sentences (no more than 600 characters) explaining purpose, major responsibilities, and the main architectural interaction", "diagrams":[{"title":"Architecture", "description":"Explain the components' responsibilities and the architectural significance of their interaction", "nodes":[{"id":"web", "label":"Web app", "finding_ids":["F0001"]}], "edges":[{"from":"web", "to":"api", "label":"Requests", "finding_ids":["F0002"], "uncertain":false}]}], "unknowns":["Important untraced behavior"]}. First diagram: component architecture showing the main responsibilities and boundaries. Add focused views for persistence/data ownership, external integrations, async work, or a representative request lifecycle only where they clarify this architecture. Do not turn the output into a step-by-step function call trace or a file dependency inventory. Label edges with the actual contract or data exchanged, such as job submission, validated changes, or stored results, rather than generic Uses or Calls. In descriptions, explain what the view means and where a boundary matters; do not merely narrate arrows. State design rationale only when explicitly evidenced; otherwise describe observed behavior without inventing reasons. Every node/edge must reference supplied finding IDs. Use 2-5 word node labels, 1-3 word edge labels, top-down readable flows; 2-6 nodes and at most 8 edges per diagram. Keep node labels within 36 characters, edge labels within 26 characters. Declare each node ID exactly once per diagram; reference that same ID in every edge using it. IDs are unique nonempty strings of at most 64 characters. Preserve stable node IDs from the previous map when still accurate. Previous summaries are context, not evidence; fresh findings remain the only evidence. Split longer flows. Do not invent a UI or connection. Diagram descriptions at most 40 words. Mark inferred connections uncertain; omitted uncertainty is treated conservatively as uncertain. These are directed flowcharts, not ER or sequence diagrams.'''
+    instruction = '''Explain this existing repository area to a new teammate who has never seen the code and may not be a developer. Use ONLY the supplied findings as evidence.
+Return JSON {"summary":"Two or three plain-language sentences, at most 600 characters", "diagrams":[{"title":"How a request becomes a result", "description":"A short explanation of what starts this flow, what the parts do, and what comes out", "nodes":[{"id":"request", "label":"Incoming request", "finding_ids":["F0001"]}], "edges":[]}], "unknowns":["Important behavior that could not be confirmed"]}.
+The summary explains what this area does for a person or the application, its main input, and its useful result. State limitations when it is only scaffolding or static content. Avoid unexplained acronyms, framework terms, class names, and method names in summaries, titles, node labels, and edge labels; keep exact technical names in source evidence. For example, describe a retriever as 'Find relevant passages', an ORM as 'Saved records', and a provider adapter as 'Answer service' when these roles match the evidence. Do not copy these examples as invented components.
+The FIRST diagram is the simplest useful story of this area's main implemented capability: usually 3-5 meaningful roles or steps, one input-to-result path, and no more than 6 arrows. Use everyday titles such as 'How documents become searchable'; do not title every view 'Architecture'. Group closely related implementation pieces into one understandable role. Show the main flow first; put alternate providers, configuration, developer tooling, detailed error handling, and bookkeeping in focused follow-up views only when needed. Avoid drawing settings objects, factories, lint tools, containers, or type contracts as the main feature unless this area's actual purpose is to provide that infrastructure. For infrastructure-only areas, explain their enabling role plainly. Keep each view at one level of detail. Use arrows consistently to show information or work moving from source to destination. Prefer a forward reading path; explain any essential loop in its own focused view.
+Each diagram description is at most 40 words and explains the purpose and outcome, expanding any unavoidable specialist term. Node labels are 2-5 plain words and at most 36 characters. Edge labels use at most 26 characters and describe the action or information in familiar words. Label essential handoffs; avoid vague 'Uses' and unexplained data type names. Every node and edge references supplied finding_ids. Edges have from, to, label, finding_ids, and uncertain (a JSON boolean). Mark inferred connections uncertain:true. Declare each unique nonempty node ID once per diagram (at most 64 characters); edges reference those IDs. Preserve accurate previous IDs. Previous maps and summaries are context, not evidence. Fresh findings are the only evidence. Do not invent a UI, connection, storage system, or complete workflow from partial coverage. These are top-down directed flowcharts, not ER or sequence diagrams.'''
     result = client.ask(instruction + f' Return 1-{config["max_diagrams"]} diagrams.', {'findings': findings, 'context': context or {}})
     try:
         return validate_result(result, findings, config)
@@ -289,10 +310,8 @@ def validate_result(result, findings, config):
         try:
             if not isinstance(diagram, dict):
                 raise MapError('expected a diagram object')
-            diagram['title'] = short(diagram.get('title'), 'title', 100)
-            diagram['description'] = short(diagram.get('description'), 'description', 500)
-            if len(diagram['description'].split()) > 40:
-                raise MapError(f'description: received {len(diagram["description"].split())} words; maximum is 40')
+            diagram['title'] = display_label(diagram.get('title'), f'diagram {diagram_index} title', 100, label_notes)
+            diagram['description'] = display_description(diagram.get('description'), f'diagram {diagram_index} description', label_notes)
             nodes, edges = diagram.get('nodes'), diagram.get('edges')
             if not isinstance(nodes, list) or not isinstance(edges, list):
                 raise MapError('Diagram nodes and edges must be JSON arrays')
@@ -381,7 +400,7 @@ def mermaid_text(diagram):
     for node in diagram['nodes']:
         result.append(f'  {ids[node["id"]]}["{label(node["label"])}"]')
     for edge in diagram['edges']:
-        caption = ('Inferred: ' if edge['uncertain'] else '') + edge['label']
+        caption = edge['label']
         arrow = '-.->' if edge['uncertain'] else '-->'
         result.append(f'  {ids[edge["from"]]} {arrow}|"{label(caption)}"| {ids[edge["to"]]}')
     return '\n'.join(result) + '\n'
@@ -398,7 +417,7 @@ def render_png(diagram, target):
     for node in diagram['nodes']:
         lines.append(f'{q(node["id"])} [label={q(textwrap.fill(node["label"], 16, break_long_words=False))}];')
     for edge in diagram['edges']:
-        caption = textwrap.fill(('Inferred: ' if edge['uncertain'] else '') + edge['label'], 18, break_long_words=False)
+        caption = textwrap.fill(edge['label'], 18, break_long_words=False)
         style = 'dashed' if edge['uncertain'] else 'solid'
         lines.append(f'{q(edge["from"])} -> {q(edge["to"])} [label={q(caption)}, style={style}];')
     lines.append('}')
@@ -436,6 +455,8 @@ def render_pdf(result, output, metadata):
             raise MapError('Diagram would render below 12pt in PDF; split this view into smaller diagrams or shorten labels')
         dw, dh = iw * ratio, ih * ratio
         pdf.drawImage(image, (width - dw) / 2, cursor - dh, width=dw, height=dh)
+        pdf.setFont('Helvetica', 9)
+        pdf.drawString(margin, 43, 'Dashed arrows: connections that need confirmation.' if any(e['uncertain'] for e in diagram['edges']) else 'Read from top to bottom. Arrows show the direction of the interaction.')
         pdf.setFont('Helvetica', 8)
         pdf.drawString(margin, 22, 'AI-generated | Source evidence and revision in README.md')
         pdf.drawRightString(width - margin, 22, f'{index}/{len(result["diagrams"])}')
@@ -481,7 +502,7 @@ def write_artifacts(result, findings, sources, coverage, metadata, output, reuse
         else:
             render_png(diagram, output / f'{stem}.png')
         all_reused = all_reused and bool(reusable)
-        readme += [f'## {diagram["title"]}', '', diagram['description'], '', '```mermaid', mermaid.rstrip(), '```', '', '<details>', '<summary>PNG fallback</summary>', '', f'![Diagram]({stem}.png)', '', '</details>', '', '### Source evidence', '']
+        readme += [f'## {diagram["title"]}', '', diagram['description'], '', '```mermaid', mermaid.rstrip(), '```', '', '<details>', '<summary>PNG fallback</summary>', '', f'![Diagram]({stem}.png)', '', '</details>', '', diagram_legend(diagram), '', '### Source evidence', '']
         used = dict.fromkeys(fid for item in diagram['nodes'] + diagram['edges'] for fid in item['finding_ids'])
         for fid in used:
             finding = findings[fid]

@@ -97,16 +97,8 @@ The log names each subsystem before its analysis starts. Validation errors inclu
 
 Long node and edge labels are shortened automatically for display. Their full wording remains in the generated README layout notes and map JSON; endpoints and evidence are unchanged. No extra model call is needed for this formatting step.
 
-## Class Notes source boundaries
+### Make maps understandable
 
-This installation defines five maps:
+The main view explains what a feature does, what starts it, and what it produces in familiar words. Internal class names and configuration details belong in source evidence or focused follow-up views. Each overview section includes a short explanation above its diagram. Dashed arrows identify connections that need confirmation; a reading key explains them once per diagram.
 
-- `web`: Next.js library, consent/recording, upload, processing status, and transcript/notes review. Its HTTP contract depends on `meeting-api`.
-- `meeting-api`: FastAPI routes, local owner authentication, upload validation, and queue creation. It depends on `persistence` for database rows and private audio storage.
-- `processing`: leased jobs, audio splitting, transcription, summary generation, and retention cleanup. It depends on `persistence`; the database job queue is the asynchronous boundary with the API.
-- `persistence`: SQLAlchemy models/sessions, Alembic migrations, private storage, and shared settings.
-- `operations`: Mac launchers, local service scripts, Compose PostgreSQL, container packaging, and CI. It depends on the application subsystems it starts or validates.
-
-Shared media/summary contracts and common settings intentionally belong to multiple maps so their consumers refresh together. Dependencies are invalidation hints; generated diagrams must cite source for runtime connections. The overview is assembled automatically from the analyzed maps.
-
-The allowlist covers implementation and runtime wiring. It excludes environment files, recordings, private data directories, dependency trees/lockfiles, tests, styling, generated OpenAPI, and historical design documents. Built-in file-type filters also omit launcher `.command` files and Alembic `.ini`/`.mako` files; their shell-script and Python counterparts supply the eligible runtime context. Source excerpts are bounded, so the maps are not an exhaustive audit.
+Descriptions longer than 40 words or 500 display characters are shortened automatically. Full explanations remain in layout notes. Titles and labels are also compacted for display. Structural errors, ambiguous duplicate IDs, missing evidence, and credential checks still stop publication with a specific diagnostic.

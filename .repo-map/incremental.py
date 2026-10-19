@@ -285,7 +285,6 @@ def overview(specs, entries, source_state, staged_maps):
             raise base.MapError(f'Subsystem map has no architecture diagram: {mid}')
         diagram = copy.deepcopy(diagrams[0])
         diagram['title'] = f'{mid}: {diagram["title"]}'[:100]
-        diagram['description'] = (diagram['description'] + ' Open this subsystem map for source evidence.')[:500]
         # Evidence IDs are local to each subsystem and are shown in that subsystem's linked page.
         for node in diagram['nodes']:
             node['finding_ids'] = []
@@ -319,8 +318,10 @@ def write_index(state, specs, entries, revision, source_state, staged_maps, rere
     lines = ['# Repository map', '', f'Source revision: `{revision}`', '',
              'Browse the Mermaid diagrams below on GitHub. PDFs and PNGs are linked for download.', '',
              '[Overview PDF](overview/repository-map.pdf) | [Overview details](overview/README.md)', '']
-    for diagram in result['diagrams']:
-        lines += [f'## {diagram["title"]}', '', '```mermaid', base.mermaid_text(diagram).rstrip(), '```', '']
+    for mid, diagram in zip(sorted(entries), result['diagrams']):
+        lines += [f'## {diagram["title"]}', '', entries[mid]['summary'], '', diagram['description'], '',
+                  '```mermaid', base.mermaid_text(diagram).rstrip(), '```', '', base.diagram_legend(diagram), '',
+                  f'[More about this area and its source evidence](maps/{mid}/README.md)', '']
     lines += ['## Subsystem maps', '', '| Map | Summary | Views | Last analyzed source |', '| --- | --- | --- | --- |']
     for mid in sorted(entries):
         entry = entries[mid]
