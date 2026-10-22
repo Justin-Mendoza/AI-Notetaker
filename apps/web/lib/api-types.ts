@@ -144,6 +144,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/meetings/{meeting_id}/slides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Slides */
+        get: operations["get_slides_v1_meetings__meeting_id__slides_get"];
+        put?: never;
+        /** Upload Slides */
+        post: operations["upload_slides_v1_meetings__meeting_id__slides_post"];
+        /** Delete Slides */
+        delete: operations["delete_slides_v1_meetings__meeting_id__slides_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/meetings/{meeting_id}/slides/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Pdf */
+        get: operations["get_pdf_v1_meetings__meeting_id__slides_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/meetings/{meeting_id}/slides/references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Save Reference */
+        patch: operations["save_reference_v1_meetings__meeting_id__slides_references_patch"];
+        trace?: never;
+    };
     "/v1/meetings/{meeting_id}/summary": {
         parameters: {
             query?: never;
@@ -212,6 +265,11 @@ export interface components {
              */
             live_transcription: boolean;
         };
+        /** Body_upload_slides_v1_meetings__meeting_id__slides_post */
+        Body_upload_slides_v1_meetings__meeting_id__slides_post: {
+            /** File */
+            file: string;
+        };
         /** CreateMeeting */
         CreateMeeting: {
             /**
@@ -263,6 +321,8 @@ export interface components {
             job: components["schemas"]["JobOut"] | null;
             meeting: components["schemas"]["MeetingOut"];
             recording: components["schemas"]["RecordingOut"] | null;
+            /** Transcribed Ms */
+            transcribed_ms: number;
         };
         /** MeetingListResponse */
         MeetingListResponse: {
@@ -352,6 +412,24 @@ export interface components {
             start_ms: number;
             /** Text */
             text: string;
+        };
+        /** SlideReference */
+        SlideReference: {
+            /** Pages */
+            pages: number[];
+            /** Topic */
+            topic: string;
+        };
+        /** SlidesOut */
+        SlidesOut: {
+            /** Filename */
+            filename: string;
+            /** Page Count */
+            page_count: number;
+            /** References */
+            references: {
+                [key: string]: number[];
+            };
         };
         /** SummaryContent */
         SummaryContent: {
@@ -783,6 +861,167 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RetryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_slides_v1_meetings__meeting_id__slides_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlidesOut"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_slides_v1_meetings__meeting_id__slides_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_slides_v1_meetings__meeting_id__slides_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlidesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_slides_v1_meetings__meeting_id__slides_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pdf_v1_meetings__meeting_id__slides_pdf_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_reference_v1_meetings__meeting_id__slides_references_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                meeting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlideReference"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlidesOut"];
                 };
             };
             /** @description Validation Error */

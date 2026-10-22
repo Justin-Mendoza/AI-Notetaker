@@ -32,6 +32,7 @@ export default function NewMeeting() {
   const [backupChecked, setBackupChecked] = useState(false);
   const [title, setTitle] = useState("");
   const [consent, setConsent] = useState(false);
+  const [slidesFile, setSlidesFile] = useState<File | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [elapsed, setElapsed] = useState(0);
   const [recordedBytes, setRecordedBytes] = useState(0);
@@ -152,7 +153,7 @@ export default function NewMeeting() {
     form.append("sequence_no", String(sequence));
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 100_000);
-    setLiveStatus(`Transcribing minute ${sequence + 1} on your Mac…`);
+    setLiveStatus(`Transcribing minute ${sequence + 1} through Kyma…`);
     const task = (async () => {
       try {
         const response = await fetch(`${apiUrl}/v1/meetings/${meetingId}/live-transcript`, {
@@ -249,6 +250,13 @@ export default function NewMeeting() {
       const created = await response.json();
       if (unmountedRef.current) { stopTracks(stream); return; }
       meetingIdRef.current = created.meeting.id;
+      if (slidesFile) {
+        try {
+          const form = new FormData(); form.append("file", slidesFile);
+          const uploaded = await fetch(`${apiUrl}/v1/meetings/${created.meeting.id}/slides`, { method: "POST", body: form });
+          if (!uploaded.ok) throw new Error();
+        } catch { setMessage("Slides could not be added. Recording will continue; you can add the PDF on the class page later."); }
+      }
       uploadKeyRef.current = crypto.randomUUID();
       chunksRef.current = [];
       recordedBytesRef.current = 0;
@@ -366,12 +374,20 @@ export default function NewMeeting() {
 
   return (
     <main className="workspace-page record-page">
-      <Link className="back-link" href="/">← Back to your library</Link>
-      <div className="page-heading"><p className="eyebrow">FOR YOUR NEXT LIGHTBULB MOMENT</p><h1>Make room for listening.</h1><p>Settle in, press record, and follow the lesson. We’ll help you turn what you hear into something you can study.</p></div>
+      <Link className="back-link" href="/">← Back to your classes</Link>
+      <div className="page-heading"><p className="eyebrow">OATMEAL AI STARTS HERE</p><h1>Make room for listening.</h1><p>Settle in, press record, and follow the lesson. Oatmeal AI will help you turn what you hear into study material you can review.</p></div>
       <div className="record-layout">
         <section className="recorder-card" aria-label="Class recorder">
           <label className="field-label" htmlFor="meeting-title">Give this class a name</label>
           <input id="meeting-title" className="class-title-input" maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} disabled={phase !== "idle"} placeholder="e.g. Biology · Photosynthesis" />
+          <label className="mt-5 block text-sm font-medium">Class slides (optional PDF, up to 20 MB / 500 pages)
+            <input className="mt-2 block w-full" type="file" accept="application/pdf,.pdf" disabled={phase !== "idle"} onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              if (file && file.size > 20 * 1024 * 1024) { setMessage("Slides must be 20 MB or smaller."); event.target.value = ""; setSlidesFile(null); return; }
+              setSlidesFile(file);
+            }} />
+          </label>
+          <p className="mt-2 text-sm text-slate-600">You can also add slides after class. Recording works without them.</p>
           <div className="record-center">
             <span className={`record-symbol ${phase === "recording" ? "is-recording" : ""}`}><Icon name="mic" size={29} /></span>
             <p className="record-time">{clock}</p>
@@ -381,10 +397,10 @@ export default function NewMeeting() {
             <p className="record-limit">Up to 2 hours · 100 MB maximum · Microphone audio only</p>
             {phase === "error" && blob && <div className="backup-actions"><button className="button-quiet" onClick={downloadLocal}>Download captured audio</button>{blob.size > 0 && blob.size <= MAX_BYTES && <button className="button-primary" onClick={() => void uploadRecording(blob)}>Retry upload<Icon name="arrow" size={15} /></button>}<button className="button-quiet" onClick={() => void discardBackup()}>Discard recording</button></div>}
           </div>
-          <label className="consent-row"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={phase !== "idle"} /><span>I have informed the people who need to know and may record this class. Recording rules and school policies vary.</span></label>
+          <label className="consent-row"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} disabled={phase !== "idle"} /><span>I have confirmed that I may record this class and informed anyone who needs to know. I will follow my instructor’s guidance and school rules. Audio is sent to Kyma for cloud transcription, and the transcript is sent to Kyma to create study notes.</span></label>
           {message && <p className="record-message" role="status" aria-live="polite">{message}</p>}
         </section>
-        <aside className="record-guide"><p className="eyebrow">A LITTLE PREPARATION GOES A LONG WAY</p><h2>Better audio.<br />Better understanding.</h2><div className="guide-item"><span className="guide-icon"><Icon name="mic" size={17} /></span><div><h3>Let the professor come through</h3><p>Keep your microphone close to the speaker and away from rustling bags or keyboard noise.</p></div></div><div className="guide-item"><span className="guide-icon"><Icon name="clock" size={17} /></span><div><h3>Keep your Mac awake</h3><p>Leave the lid open, stay plugged in, and keep this tab open until your upload finishes.</p></div></div><div className="guide-item"><span className="guide-icon"><Icon name="book" size={17} /></span><div><h3>Come back to clear notes</h3><p>Your transcript builds during class. DeepSeek prepares detailed topics, examples, and assignments after you stop.</p></div></div><p className="record-reminder">Audio is backed up in this browser when storage is available. After an interruption, reopen this page in the same browser to recover what was captured. Recording pauses while your Mac sleeps or the page is closed.</p></aside>
+        <aside className="record-guide"><p className="eyebrow">A LITTLE PREPARATION GOES A LONG WAY</p><h2>Better audio.<br />Better understanding.</h2><div className="guide-item"><span className="guide-icon"><Icon name="mic" size={17} /></span><div><h3>Let your instructor come through</h3><p>Keep your microphone close to the speaker and away from rustling bags or keyboard noise.</p></div></div><div className="guide-item"><span className="guide-icon"><Icon name="clock" size={17} /></span><div><h3>Keep your Mac awake</h3><p>Leave the lid open, stay plugged in, and keep this tab open until your upload finishes.</p></div></div><div className="guide-item"><span className="guide-icon"><Icon name="book" size={17} /></span><div><h3>Come back to clear notes</h3><p>Your transcript builds during class. Oatmeal AI prepares detailed topics, examples, and assignments after you stop.</p></div></div><p className="record-reminder">Audio is backed up in this browser when storage is available. After an interruption, reopen this page in the same browser to recover what was captured. Recording pauses while your Mac sleeps or the page is closed.</p></aside>
       </div>
       {(phase !== "idle" || liveSegments.length > 0) && <section className="live-transcript-card" aria-label="Live class transcript"><div className="section-heading"><div><p className="eyebrow">LESS WAITING AFTER CLASS</p><h2>As the lesson unfolds.</h2></div><span className="status-pill"><i />Near-live transcript</span></div><p className="live-caption" role="status" aria-live="polite">{phase === "finishing" || phase === "uploading" ? "Finishing the recording. Any remaining audio will be transcribed before your study notes are prepared." : liveStatus}</p><div className="live-transcript-text">{liveSegments.map((segment) => <p key={segment.sequence_no}><span>{Math.floor(segment.start_ms / 60000)}–{Math.ceil(segment.end_ms / 60000)} min</span>{segment.text || "No clear speech detected in this minute."}</p>)}</div></section>}
     </main>

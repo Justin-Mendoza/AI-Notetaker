@@ -54,17 +54,17 @@ export default function Home() {
     <main className="library-page workspace-page">
       <section className="library-hero">
         <div className="hero-copy">
-          <p className="eyebrow"><span className="small-star">✳</span> LESS SCRIBBLING. MORE LISTENING.</p>
-          <h1>Be in class.<br /><span>Keep the whole lesson.</span></h1>
-          <p className="hero-description">Stay with the explanation, the example, the lightbulb moment. Turn your lecture into a transcript and thoughtful study notes, ready when you are.</p>
+          <p className="eyebrow"><span className="small-star">✳</span> YOUR CLASS STUDY ASSISTANT</p>
+          <h1>Stay with the lesson.<br /><span>Study it on your time.</span></h1>
+          <p className="hero-description">Follow the explanation instead of racing to write every word. Oatmeal AI keeps a transcript of the class you choose to record, then helps you review topics, details, and assignments afterward.</p>
           <Link href="/meetings/new" className="button-primary"><Icon name="mic" size={18} />Record a class<Icon name="arrow" size={18} /></Link>
-          <p className="hero-footnote"><Icon name="clock" size={14} /> Up to 2 hours per recording · Audio processed on your Mac</p>
+          <p className="hero-footnote"><Icon name="clock" size={14} /> Up to 2 hours per class · Cloud transcription through Kyma</p>
         </div>
-        <aside className="lesson-card" aria-label="How Class Notes works">
-          <div className="lesson-card-top"><span className="eyebrow">A GOOD CLASS, KEPT.</span><span className="paper-star" aria-hidden="true">✳</span></div>
+        <aside className="lesson-card" aria-label="How Oatmeal AI works">
+          <div className="lesson-card-top"><span className="eyebrow">LISTEN NOW. REVIEW LATER.</span><span className="paper-star" aria-hidden="true">✳</span></div>
           <div className="lesson-illustration" aria-hidden="true"><div className="audio-orb"><Icon name="mic" size={28} /></div><div className="illustration-wave">{[9,18,28,15,38,48,26,40,20,32,14,22].map((height, i) => <i key={i} style={{ height }} />)}</div><span className="note-sticker"><Icon name="check" size={17} />Keep the important bits</span></div>
-          <h2>From lecture<br />to lightbulb.</h2>
-          <ol className="lesson-steps"><li><span>01</span>Record without missing a moment</li><li><span>02</span>Revisit what was actually said</li><li><span>03</span>Study one clear topic at a time</li></ol>
+          <h2>From class<br />to clear notes.</h2>
+          <ol className="lesson-steps"><li><span>01</span>Listen while the lesson unfolds</li><li><span>02</span>Find the moment in your transcript</li><li><span>03</span>Review the key ideas and tasks</li></ol>
         </aside>
       </section>
       <section className="class-library" aria-label="Your classes">
@@ -73,7 +73,7 @@ export default function Home() {
         {nextCursor && <button className="button-quiet load-more" onClick={() => void loadMeetings(nextCursor)}>Load more classes<Icon name="arrow" size={16} /></button>}
         {message && <p role="status" aria-live="polite" className="app-message">{message}</p>}
       </section>
-      <div className="privacy-note"><Icon name="book" size={16} /><p>Yours to record. Yours to review. Audio stays on your Mac for transcription; the transcript goes to Kyma for study notes.</p></div>
+      <div className="privacy-note"><Icon name="book" size={16} /><p>You choose what to record. Audio is sent to Kyma for transcription; the transcript is sent to Kyma to draft study notes. Follow your instructor’s guidance and school recording rules.</p></div>
     </main>
   );
 }

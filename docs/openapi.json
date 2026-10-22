@@ -96,6 +96,20 @@
         "title": "Body_upload_recording_v1_meetings__meeting_id__recording_post",
         "type": "object"
       },
+      "Body_upload_slides_v1_meetings__meeting_id__slides_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_slides_v1_meetings__meeting_id__slides_post",
+        "type": "object"
+      },
       "CreateMeeting": {
         "properties": {
           "consent_confirmed": {
@@ -243,12 +257,17 @@
                 "type": "null"
               }
             ]
+          },
+          "transcribed_ms": {
+            "title": "Transcribed Ms",
+            "type": "integer"
           }
         },
         "required": [
           "meeting",
           "recording",
           "job",
+          "transcribed_ms",
           "has_transcript",
           "has_summary"
         ],
@@ -470,6 +489,59 @@
         "title": "SegmentOut",
         "type": "object"
       },
+      "SlideReference": {
+        "properties": {
+          "pages": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "title": "Pages",
+            "type": "array"
+          },
+          "topic": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "pages"
+        ],
+        "title": "SlideReference",
+        "type": "object"
+      },
+      "SlidesOut": {
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "page_count": {
+            "title": "Page Count",
+            "type": "integer"
+          },
+          "references": {
+            "additionalProperties": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "title": "References",
+            "type": "object"
+          }
+        },
+        "required": [
+          "filename",
+          "page_count",
+          "references"
+        ],
+        "title": "SlidesOut",
+        "type": "object"
+      },
       "SummaryContent": {
         "additionalProperties": false,
         "properties": {
@@ -658,7 +730,7 @@
     }
   },
   "info": {
-    "title": "Class Notes API",
+    "title": "Oatmeal AI API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
@@ -1188,6 +1260,236 @@
         "summary": "Retry Meeting",
         "tags": [
           "meetings"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/slides": {
+      "delete": {
+        "operationId": "delete_slides_v1_meetings__meeting_id__slides_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Slides",
+        "tags": [
+          "slides"
+        ]
+      },
+      "get": {
+        "operationId": "get_slides_v1_meetings__meeting_id__slides_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SlidesOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Slides V1 Meetings  Meeting Id  Slides Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Slides",
+        "tags": [
+          "slides"
+        ]
+      },
+      "post": {
+        "operationId": "upload_slides_v1_meetings__meeting_id__slides_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_slides_v1_meetings__meeting_id__slides_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlidesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Slides",
+        "tags": [
+          "slides"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/slides/pdf": {
+      "get": {
+        "operationId": "get_pdf_v1_meetings__meeting_id__slides_pdf_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Pdf",
+        "tags": [
+          "slides"
+        ]
+      }
+    },
+    "/v1/meetings/{meeting_id}/slides/references": {
+      "patch": {
+        "operationId": "save_reference_v1_meetings__meeting_id__slides_references_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meeting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Meeting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlideReference"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlidesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Reference",
+        "tags": [
+          "slides"
         ]
       }
     },

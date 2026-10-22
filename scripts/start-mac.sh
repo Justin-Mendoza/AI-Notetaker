@@ -25,7 +25,7 @@ fi
 
 if curl --silent --fail http://127.0.0.1:3000 >/dev/null \
   && curl --silent --fail http://127.0.0.1:8000/readyz >/dev/null; then
-  echo "Class Notes is already running."
+  echo "Oatmeal AI is already running."
   open http://localhost:3000
   exit 0
 fi
@@ -38,7 +38,7 @@ if [[ -f .data/dev.pid ]]; then
     prior_command="$(ps -p "$prior_pid" -o command= 2>/dev/null || true)"
     if [[ "$prior_command" == *"scripts/dev.sh"* ]]; then
       dev_pid="$prior_pid"
-      echo "Class Notes is already starting..."
+      echo "Oatmeal AI is already starting..."
     fi
   fi
 fi
@@ -47,16 +47,16 @@ if [[ -z "$dev_pid" ]]; then
   dev_pid=$!
   own_process=true
   trap 'kill -TERM "$dev_pid" 2>/dev/null || true' EXIT INT TERM
-  echo "Starting Class Notes..."
+  echo "Starting Oatmeal AI..."
 fi
 for _ in {1..120}; do
   if ! kill -0 "$dev_pid" 2>/dev/null; then
-    echo "Class Notes could not start. See the messages above in this window." >&2
+    echo "Oatmeal AI could not start. See the messages above in this window." >&2
     exit 1
   fi
   if curl --silent --fail http://127.0.0.1:3000 >/dev/null \
     && curl --silent --fail http://127.0.0.1:8000/readyz >/dev/null; then
-    echo "Class Notes is ready."
+    echo "Oatmeal AI is ready."
     open http://localhost:3000
     if [[ "$own_process" == true ]]; then
       echo "Keep this window open while using the app, or use Stop Class Notes.command."
@@ -67,5 +67,5 @@ for _ in {1..120}; do
   sleep 1
 done
 
-echo "Class Notes did not become ready. See the messages above in this window." >&2
+echo "Oatmeal AI did not become ready. See the messages above in this window." >&2
 exit 1

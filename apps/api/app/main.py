@@ -9,6 +9,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import func, select, text
 
 from app.api.meetings import router as meetings_router
+from app.api.slides import router as slides_router
 from app.auth.local import local_web_origins
 from app.db.session import SessionLocal, engine
 from app.errors import ApiError, api_error_handler, error_response, validation_error_handler
@@ -19,7 +20,7 @@ from app.observability import configure_logging
 from app.settings import settings
 from app.size_limit import UploadLimitMiddleware, UploadTooLarge
 
-app = FastAPI(title="Class Notes API", version="0.1.0")
+app = FastAPI(title="Oatmeal AI API", version="0.1.0")
 configure_logging()
 logger = logging.getLogger(__name__)
 app.add_middleware(UploadLimitMiddleware)
@@ -102,6 +103,7 @@ def metrics(authorization: str | None = Header(default=None)) -> PlainTextRespon
 
 
 app.include_router(meetings_router)
+app.include_router(slides_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=sorted(local_web_origins()),

@@ -1,8 +1,29 @@
 # Transcription and summary providers
 
-## Current Mac setup: Cohere Transcribe locally
+## Current setup: GPT Transcribe through Kyma
 
-The Mac setup uses **Cohere Transcribe 03-2026**, via MLX on Apple Silicon, with the community `mlx-community/cohere-transcribe-03-2026-mlx-8bit` conversion. This is a quantized conversion, not an official Cohere-hosted endpoint. Audio is processed on the Mac. DeepSeek v4.1 Flash through Kyma receives the resulting transcript to create study notes.
+Set the following in the root `.env` (never in the browser environment):
+
+```dotenv
+STT_PROVIDER=kyma
+KYMA_BASE_URL=https://kymaapi.com/v1
+KYMA_TRANSCRIPTION_MODEL=gpt-transcribe
+KYMA_API_KEY=your-server-only-key
+SUMMARY_PROVIDER=kyma
+KYMA_SUMMARY_MODEL=deepseek-v4.1-flash
+```
+
+Transcription and study notes share the same server-side `KYMA_API_KEY`. The API and worker send audio to Kyma's OpenAI-compatible `POST /v1/audio/transcriptions` endpoint using the exact `gpt-transcribe` model ID. Audio leaves the Mac; the app remains hosted locally and stores recordings, transcripts, and notes locally. Internet access and Kyma credit are required. The recorder discloses cloud processing before recording.
+
+During recording, the local API extracts a complete one-minute window from the browser's growing audio prefix and sends only that window to Kyma. Saved windows are reused after upload; the worker fills gaps and the final partial minute. Recordings without live capture use ten-minute chunks below 20 MB. Requests have bounded timeouts; transient failures use the existing worker retry policy, preserving saved sections. A failed near-live request does not stop recording. Section time links are approximate audio-window boundaries, not provider word timestamps.
+
+After transcription, DeepSeek through Kyma creates study notes. The class page shows saved transcription minutes and percentage, updating every four seconds. The launcher skips Cohere/Whisper startup when `STT_PROVIDER=kyma`. Restart the stack after changing providers, once active processing is complete; the worker loads settings at startup. Existing saved transcripts and notes are retained.
+
+Kyma endpoint and model reference: [GPT Transcribe](https://kymaapi.com/models/gpt-transcribe), [transcription API](https://kymaapi.com/transcription).
+
+## Optional local setup: Cohere Transcribe
+
+The optional local setup uses **Cohere Transcribe 03-2026**, via MLX on Apple Silicon, with the community `mlx-community/cohere-transcribe-03-2026-mlx-8bit` conversion. This is a quantized conversion, not an official Cohere-hosted endpoint. Audio is processed on the Mac. DeepSeek v4.1 Flash through Kyma receives the resulting transcript to create study notes.
 
 A separate `.venv-cohere-speech` keeps MLX dependencies out of the API environment:
 
@@ -25,7 +46,7 @@ KYMA_BASE_URL=https://kymaapi.com/v1
 KYMA_SUMMARY_MODEL=deepseek-v4.1-flash
 ```
 
-Keep `KYMA_API_KEY` server-side in `.env`. A GitHub Actions secret is separate from the app's local credentials. The Start Class Notes launcher starts the database, Cohere service, API, worker, and web app. The health endpoint returns the loaded model at `http://127.0.0.1:7778/health`.
+Keep `KYMA_API_KEY` server-side in `.env`. A GitHub Actions secret is separate from the app's local credentials. The existing Start Class Notes launcher (filename retained) starts Oatmeal AI’s database, Cohere service, API, worker, and web app. The health endpoint returns the loaded model at `http://127.0.0.1:7778/health`.
 
 During class, complete one-minute transcript windows are saved and shown in the recorder. The browser sends a growing audio prefix to the local API so container headers are preserved; the API extracts only the next complete minute for Cohere. These requests stay on loopback. They are serialized and time-limited; a live failure does not stop recording. After Stop, the worker reuses saved minutes and fills gaps and the last partial minute from the full recording. Older recordings use ten-minute recovery chunks. Cohere divides audio into short inference windows. DeepSeek receives the complete transcript after recording ends. A two-hour class is supported, subject to the 100 MB upload limit. Capture requests 64 kbps audio (about 58 MB for two hours, excluding container overhead; browsers may choose a different bitrate).
 

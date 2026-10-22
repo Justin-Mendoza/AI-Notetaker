@@ -1,4 +1,4 @@
-# Class Notes API
+# Oatmeal AI API
 
 All `/v1` routes are for the single owner on this Mac. The API accepts loopback clients and local Host values only. Browser requests use the configured web origin; writes require its `Origin` header. Rejected remote or cross-site requests receive `403`. Errors use `{ "error": { "code", "message", "request_id" } }`. Responses carry `X-Request-ID`.
 
@@ -21,6 +21,6 @@ Upload requests are bounded at 101 MB including multipart framing; audio itself 
 
 ## Near-live transcription
 
-`POST /v1/meetings/{id}/live-transcript` accepts a cumulative audio `file`, zero-based `sequence_no` (0–119), and the capture session's `Idempotency-Key`. It extracts and locally transcribes one complete 60-second window. It returns a saved transcript segment; repeated confirmed windows reuse the same segment. Only an owned draft accepts live windows. Incomplete windows return 409 and remain available for a later snapshot or final catch-up. The same 101 MB multipart body bound applies.
+`POST /v1/meetings/{id}/live-transcript` accepts a cumulative audio `file`, zero-based `sequence_no` (0–119), and the capture session's `Idempotency-Key`. It extracts one complete 60-second window and transcribes it with the selected Kyma or Cohere Local provider. Kyma sends that window to the cloud. It returns a saved transcript segment; repeated confirmed windows reuse the same segment. Only an owned draft accepts live windows. Incomplete windows return 409 and remain available for a later snapshot or final catch-up. The same 101 MB multipart body bound applies.
 
 `GET /v1/meetings/{id}/live-transcript` returns saved partial segments for an owned recording. Upload the full recording with `live_transcription=true` to finalize; the worker fills missing one-minute windows and the last partial window before summarization. Saved live segments also select this mode automatically. The existing `/transcript` route continues to expose the completed transcript only.
