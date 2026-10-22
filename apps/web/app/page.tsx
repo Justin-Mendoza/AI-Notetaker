@@ -58,7 +58,7 @@ export default function Home() {
           <h1>Stay with the lesson.<br /><span>Study it on your time.</span></h1>
           <p className="hero-description">Follow the explanation instead of racing to write every word. Oatmeal AI keeps a transcript of the class you choose to record, then helps you review topics, details, and assignments afterward.</p>
           <Link href="/meetings/new" className="button-primary"><Icon name="mic" size={18} />Record a class<Icon name="arrow" size={18} /></Link>
-          <p className="hero-footnote"><Icon name="clock" size={14} /> Up to 2 hours per class · Audio transcribed on your Mac</p>
+          <p className="hero-footnote"><Icon name="clock" size={14} /> Up to 2 hours per class · Cloud transcription through Kyma</p>
         </div>
         <aside className="lesson-card" aria-label="How Oatmeal AI works">
           <div className="lesson-card-top"><span className="eyebrow">LISTEN NOW. REVIEW LATER.</span><span className="paper-star" aria-hidden="true">✳</span></div>
@@ -73,7 +73,7 @@ export default function Home() {
         {nextCursor && <button className="button-quiet load-more" onClick={() => void loadMeetings(nextCursor)}>Load more classes<Icon name="arrow" size={16} /></button>}
         {message && <p role="status" aria-live="polite" className="app-message">{message}</p>}
       </section>
-      <div className="privacy-note"><Icon name="book" size={16} /><p>You choose what to record. Audio is transcribed on your Mac; the transcript is sent to Kyma to draft study notes. Follow your instructor’s guidance and school recording rules.</p></div>
+      <div className="privacy-note"><Icon name="book" size={16} /><p>You choose what to record. Audio is sent to Kyma for transcription; the transcript is sent to Kyma to draft study notes. Follow your instructor’s guidance and school recording rules.</p></div>
     </main>
   );
 }

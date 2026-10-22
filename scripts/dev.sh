@@ -7,7 +7,7 @@ if [[ ! -f .env ]]; then
   echo "Copy .env.example to .env and configure local credentials first." >&2
   exit 1
 fi
-if grep -q '^SUMMARY_PROVIDER=kyma$' .env && ! grep -Eq '^KYMA_API_KEY=[^[:space:]]+' .env; then
+if grep -Eq '^(SUMMARY_PROVIDER|STT_PROVIDER)=kyma$' .env && ! grep -Eq '^KYMA_API_KEY=[^[:space:]]+' .env; then
   echo "Add KYMA_API_KEY to .env before starting the app." >&2
   exit 1
 fi

@@ -222,3 +222,36 @@ def test_ready_class_notes_regenerate_without_losing_previous_draft(api_client):
     assert job.status == "pending" and job.stage == "summarizing"
     assert job.cursor == 1
     generator.close()
+
+
+def test_progress_counts_saved_duration_instead_of_cursor(api_client):
+    client, _ = api_client
+    response = client.post(
+        "/v1/meetings", json={"consent_confirmed": True, "consent_policy_version": "v1"}
+    )
+    meeting_id = uuid.UUID(response.json()["meeting"]["id"])
+    assert client.get(f"/v1/meetings/{meeting_id}").json()["transcribed_ms"] == 0
+    generator, db = db_for_client()
+    meeting = db.get(Meeting, meeting_id)
+    meeting.duration_ms = 150_000
+    meeting.status = "transcribing"
+    # A missing minute must not count as completed audio.
+    for number, start, end in [(0, 0, 60_000), (2, 120_000, 150_000)]:
+        db.add(
+            TranscriptSegment(
+                meeting_id=meeting_id,
+                sequence_no=number,
+                start_ms=start,
+                end_ms=end,
+                text="test",
+                provider="fake",
+                model="fake",
+                created_at=utc_now(),
+            )
+        )
+    db.commit()
+    assert client.get(f"/v1/meetings/{meeting_id}").json()["transcribed_ms"] == 90_000
+    meeting.duration_ms = 80_000
+    db.commit()
+    assert client.get(f"/v1/meetings/{meeting_id}").json()["transcribed_ms"] == 80_000
+    generator.close()

@@ -2,7 +2,7 @@
 
 **Stay with the lesson. Come back ready to study.** Oatmeal AI is a personal study assistant for lectures you choose to record. It creates a transcript as class goes on, then turns the completed transcript into organized notes you can revisit: topics explained, important details, quick review points, assignments, and questions to follow up on.
 
-Oatmeal AI runs locally on one Mac. Audio is transcribed on your Mac with Cohere; after recording, the transcript is sent to DeepSeek through Kyma to draft study notes. Notes are a starting point for review, so check them against the transcript. See [how audio and transcripts are processed](docs/provider-options.md).
+Oatmeal AI runs locally on one Mac. Audio is sent to GPT Transcribe through Kyma for cloud transcription; after recording, the transcript is sent to DeepSeek through Kyma to draft study notes. Notes are a starting point for review, so check them against the transcript. See [how audio and transcripts are processed](docs/provider-options.md).
 
 ## How it helps you study
 
@@ -17,7 +17,7 @@ Oatmeal AI is a personal, single-user Mac app, not a hosted service or a substit
 ## Requirements
 
 - Node.js 20.19 or newer, npm, Python 3.11–3.14, Docker with the daemon running, and FFmpeg (`ffmpeg` and `ffprobe`) installed for the API and worker.
-- Cohere Local installed on this Mac using [the provider instructions](docs/provider-options.md), and a Kyma API key for summaries.
+- A Kyma API key for transcription and summaries; see [the provider instructions](docs/provider-options.md).
 
 ## Local startup
 
@@ -27,14 +27,16 @@ For this Mac, double-click the existing [Start Class Notes.command](Start%20Clas
 2. Run `docker compose up -d` to start PostgreSQL on loopback.
 3. Run `python3 -m venv .venv && .venv/bin/pip install -e 'apps/api[dev]'`.
 4. Run `.venv/bin/alembic -c apps/api/alembic.ini upgrade head`.
-5. Start Cohere Local with `./scripts/start-cohere-local.sh`. In another terminal run `.venv/bin/uvicorn app.main:app --app-dir apps/api --reload --host 127.0.0.1 --port 8000`. In another run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.main` with the same `.env`.
+5. With `STT_PROVIDER=kyma` and `KYMA_TRANSCRIPTION_MODEL=gpt-transcribe` configured, run `.venv/bin/uvicorn app.main:app --app-dir apps/api --reload --host 127.0.0.1 --port 8000`. In another run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.main` with the same `.env`.
 6. Run `cd apps/web && npm install && npm run dev -- --hostname 127.0.0.1`. Open `http://localhost:3000` on this Mac.
 
-Once dependencies and env files are set, `bash scripts/dev.sh` starts PostgreSQL, applies migrations, starts Cohere Local if needed, and launches the API, worker, and web app together. It checks that `KYMA_API_KEY` is set before starting.
+Once dependencies and env files are set, `bash scripts/dev.sh` starts PostgreSQL, applies migrations, starts a local transcription service only if selected, and launches the API, worker, and web app together. It checks that `KYMA_API_KEY` is set before starting.
 
 The worker runs cleanup at startup and hourly to purge expired raw audio, remove deleted meetings and abandoned drafts, and sweep old recording files. You can also run `PYTHONPATH=apps/api .venv/bin/python -m app.worker.cleanup` manually. Local operation and smoke-test steps are in [deploy/README.md](deploy/README.md).
 
-To make a study set, choose **Record a class**, name the lesson, review the consent reminder, and start recording. Oatmeal AI supports up to two hours per recording (100 MB maximum). It saves audio in your browser when storage is available and transcribes complete one-minute sections on your Mac. Transcription appears with a delay; it is not word-by-word streaming. After you stop, the app fills any missing sections and sends the completed transcript to DeepSeek through Kyma to draft study notes. Each topic includes an explanation, key details, and approximate links back to the transcript. You can copy or download notes as Markdown and download the transcript as text. Existing transcripts can generate a fresh set of notes.
+To make a study set, choose **Record a class**, name the lesson, review the consent reminder, and start recording. Oatmeal AI supports up to two hours per recording (100 MB maximum). It saves audio in your browser when storage is available and sends complete one-minute audio sections to Kyma for transcription. Transcription appears with a delay; it is not word-by-word streaming. After you stop, the app fills any missing sections and sends the completed transcript to DeepSeek through Kyma to draft study notes. Each topic includes an explanation, key details, and approximate links back to the transcript. You can copy or download notes as Markdown and download the transcript as text. Existing transcripts can generate a fresh set of notes.
+
+Slides are optional. Choose a PDF on **Record a class**, or add it later under **Class slides** on the class page (one PDF, up to 20 MB and 500 pages; encrypted PDFs are unsupported). Each PDF page counts as one slide. Use Previous/Next or the slide selector to view a page, then choose **Link current slide** under a study-guide topic. Clicking **Slide 12**, for example, opens that page in the viewer. References also appear in copied/downloaded notes. Use × beside a reference to unlink it. Removing the PDF clears its references; recording, transcripts, and notes remain available. Slide matching is manual, and PDFs are stored in the local database without being sent to the notes provider. If refreshing notes changes a topic heading, link its slides again.
 
 Keep the Mac awake, lid open, and plugged in during class. If the tab closes or crashes, reopen **Record a class** in the same browser to recover audio already saved there; recording does not continue during an interruption. Avoid private browsing, which may not retain backups. If note generation fails, your transcript and previous notes remain available to retry.
 
@@ -65,4 +67,4 @@ The API tests use temporary SQLite databases and test local-only access rules. C
 
 ## Before a long class
 
-Before class, open `http://localhost:3000` and make a short test with the microphone you plan to use. Check that the transcript captures speech clearly and that the notes help you review it. Place the microphone where your instructor is clearly audible. Keep the Mac plugged in and awake, with its lid open; leave the recording tab and startup Terminal window open. The limit is two hours or 100 MB. After class, wait for upload to finish before closing the tab. Transcription and note generation continue afterward; Kyma needs internet to prepare notes. **Retry** resumes failed note generation without retranscribing completed sections. Download the notes or transcript if you want to use them in your own study workflow.
+Before class, open `http://localhost:3000` and make a short test with the microphone you plan to use. Check that the transcript captures speech clearly and that the notes help you review it. Place the microphone where your instructor is clearly audible. Keep the Mac plugged in and awake, with its lid open; leave the recording tab and startup Terminal window open. The limit is two hours or 100 MB. After class, wait for upload to finish before closing the tab. Transcription and note generation continue afterward; Kyma needs internet for transcription and notes. **Retry** resumes failed note generation without retranscribing completed sections. Download the notes or transcript if you want to use them in your own study workflow.

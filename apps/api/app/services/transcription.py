@@ -48,6 +48,25 @@ class OpenAITranscriber:
             ) from exc
 
 
+class KymaTranscriber(OpenAITranscriber):
+    """Use Kyma's OpenAI-compatible file transcription endpoint."""
+
+    provider = "kyma"
+
+    def __init__(self):
+        if not settings.kyma_api_key or settings.kyma_api_key == "your-server-only-key":
+            raise TranscriptionError("PROVIDER_UNAVAILABLE", transient=False)
+        if settings.kyma_base_url != "https://kymaapi.com/v1":
+            raise TranscriptionError("KYMA_URL_INVALID", transient=False)
+        self.model = settings.kyma_transcription_model
+        self.client = OpenAI(
+            base_url=settings.kyma_base_url,
+            api_key=settings.kyma_api_key,
+            timeout=180,
+            max_retries=0,
+        )
+
+
 class WhisperLocalTranscriber(OpenAITranscriber):
     """Use drajb/whisper-local's loopback-only OpenAI-compatible API."""
 
@@ -103,6 +122,8 @@ class CohereLocalTranscriber(OpenAITranscriber):
 
 
 def create_transcriber() -> Transcriber:
+    if settings.stt_provider == "kyma":
+        return KymaTranscriber()
     if settings.stt_provider == "cohere_local":
         return CohereLocalTranscriber()
     if settings.stt_provider == "openai":

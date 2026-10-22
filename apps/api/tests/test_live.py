@@ -1,6 +1,7 @@
 import uuid
 from types import SimpleNamespace
 
+import pytest
 from test_upload import FakeStorage, create_meeting
 
 from app.api import meetings
@@ -17,7 +18,10 @@ def post_live(client, meeting_id, key, sequence=0):
     )
 
 
-def test_live_minutes_are_owned_idempotent_and_reused_by_final_upload(api_client, monkeypatch):
+@pytest.mark.parametrize("provider", ["cohere_local", "kyma"])
+def test_live_minutes_are_owned_idempotent_and_reused_by_final_upload(
+    api_client, monkeypatch, provider
+):
     client, identity = api_client
     calls = []
 
@@ -30,12 +34,12 @@ def test_live_minutes_are_owned_idempotent_and_reused_by_final_upload(api_client
             calls.append(path)
             return "A saved minute of class"
 
-    monkeypatch.setattr(meetings, "CohereLocalTranscriber", LocalTranscriber)
+    monkeypatch.setattr(meetings, "create_transcriber", LocalTranscriber)
     monkeypatch.setattr(
         meetings,
         "settings",
         SimpleNamespace(
-            stt_provider="cohere_local",
+            stt_provider=provider,
             max_uploads_per_hour=10,
             max_meetings_per_hour=20,
             failed_audio_retention_days=7,

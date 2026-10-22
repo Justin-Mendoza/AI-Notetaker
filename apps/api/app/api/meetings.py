@@ -26,7 +26,7 @@ from app.services.live import LIVE_CHUNK_MS, extract_live_window
 from app.services.media import MAX_DURATION_MS, MAX_FILE_BYTES, inspect_audio
 from app.services.storage import Storage, get_storage
 from app.services.summarization import SummaryContent
-from app.services.transcription import CohereLocalTranscriber, TranscriptionError
+from app.services.transcription import TranscriptionError, create_transcriber
 from app.settings import settings
 
 router = APIRouter(prefix="/v1/meetings", tags=["meetings"])
@@ -110,6 +110,7 @@ class JobOut(BaseModel):
 class MeetingDetailResponse(MeetingResponse):
     recording: RecordingOut | None
     job: JobOut | None
+    transcribed_ms: int
     has_transcript: bool
     has_summary: bool
 
@@ -240,7 +241,15 @@ def get_meeting(
     recording = db.scalar(select(Recording).where(Recording.meeting_id == meeting_id))
     job = db.scalar(select(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id))
     summary = db.scalar(select(Summary).where(Summary.meeting_id == meeting_id))
+    transcribed_ms = db.scalar(
+        select(
+            func.coalesce(func.sum(TranscriptSegment.end_ms - TranscriptSegment.start_ms), 0)
+        ).where(TranscriptSegment.meeting_id == meeting_id)
+    )
     return {
+        "transcribed_ms": min(transcribed_ms, meeting.duration_ms)
+        if meeting.duration_ms
+        else transcribed_ms,
         "meeting": MeetingOut.model_validate(meeting),
         "recording": RecordingOut.model_validate(recording) if recording else None,
         "job": JobOut.model_validate(job) if job else None,
@@ -288,8 +297,8 @@ def transcribe_live_window(
     )
     if existing:
         return SegmentOut.model_validate(existing).model_dump()
-    if settings.stt_provider != "cohere_local":
-        raise ApiError(503, "LOCAL_STT_UNAVAILABLE", "Local live transcription is unavailable")
+    if settings.stt_provider not in {"cohere_local", "kyma"}:
+        raise ApiError(503, "LIVE_STT_UNAVAILABLE", "Live transcription is unavailable")
     meeting.upload_key = idempotency_key
     meeting.updated_at = utc_now()
     db.commit()
@@ -308,7 +317,7 @@ def transcribe_live_window(
             raise ApiError(415, "INVALID_MEDIA", "The recording is empty")
         window = extract_live_window(source, file.content_type or "", sequence_no, directory)
         try:
-            transcriber = CohereLocalTranscriber()
+            transcriber = create_transcriber()
             transcriber.client = transcriber.client.with_options(timeout=90)
             text = transcriber.transcribe(window)
         except TranscriptionError as exc:

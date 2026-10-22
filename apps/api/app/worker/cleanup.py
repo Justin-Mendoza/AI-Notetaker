@@ -12,6 +12,7 @@ from app.db.session import SessionLocal
 from app.models.job import ProcessingJob
 from app.models.meeting import Meeting, utc_now
 from app.models.recording import Recording
+from app.models.slides import SlideDeck
 from app.models.summary import Summary
 from app.models.transcript import TranscriptSegment
 from app.observability import configure_logging
@@ -65,6 +66,7 @@ def cleanup_deleted_meetings(session_factory: SessionFactory, storage: Storage) 
             meeting = db.get(Meeting, meeting_id)
             if meeting is None or meeting.deleted_at is None:
                 continue
+            db.execute(delete(SlideDeck).where(SlideDeck.meeting_id == meeting_id))
             db.execute(delete(Summary).where(Summary.meeting_id == meeting_id))
             db.execute(delete(TranscriptSegment).where(TranscriptSegment.meeting_id == meeting_id))
             db.execute(delete(ProcessingJob).where(ProcessingJob.meeting_id == meeting_id))
